@@ -94,6 +94,11 @@ export function getAttr(node: XmlNode, attrName: string): string | undefined {
 }
 
 export function getTextContent(node: XmlNode): string {
+  // fast-xml-parser returns text-only elements as raw strings/numbers
+  // when they appear inside isArray tags (e.g. m:t with content "-2")
+  const raw = node as unknown;
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number") return String(raw);
   const text = node["#text"];
   if (typeof text === "string") return text;
   if (typeof text === "number") return String(text);

@@ -147,7 +147,7 @@ describe("QuestionAssembler", () => {
     expect(result[0]!.question).toBe("কোনটি সঠিক?");
   });
 
-  it("skips content before first question", () => {
+  it("captures unnumbered content before first numbered question", () => {
     const elements: BodyElement[] = [
       para("Math Exam 2024"),
       para("Total marks: 100"),
@@ -157,8 +157,11 @@ describe("QuestionAssembler", () => {
       para("(B) no"),
     ];
     const result = assembleQuestions(elements, defaultOpts, []);
-    expect(result).toHaveLength(1);
-    expect(result[0]!.question).toBe("First question");
+    expect(result).toHaveLength(2);
+    expect(result[0]!.question).toContain("Math Exam 2024");
+    expect(result[0]!.options).toHaveLength(0);
+    expect(result[1]!.question).toBe("First question");
+    expect(result[1]!.options).toHaveLength(2);
   });
 
   it("handles images in question text", () => {

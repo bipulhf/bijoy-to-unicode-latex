@@ -10,13 +10,16 @@ import {
   isSubPartParagraph,
   isBlankParagraph,
   isEquationOnlyParagraph,
+  isContentParagraph,
   getParagraphText,
   stripQuestionNumber,
   getFullTextContent,
 } from "./QuestionDetector.js";
 import {
   isOptionParagraph,
+  hasMultipleOptionMarkers,
   getOptionText,
+  parseMultiOptionNodes,
   tryExtractEmbeddedOptions,
   getTextBeforeEmbeddedOptions,
 } from "./OptionDetector.js";
@@ -93,6 +96,15 @@ function handleIdle(
 ): void {
   if (isQuestionParagraph(p)) {
     startQuestion(p, st, imageToken);
+    return;
+  }
+
+  if (isOptionParagraph(p)) {
+    return;
+  }
+
+  if (isContentParagraph(p)) {
+    startUnnumberedQuestion(p, st, imageToken);
   }
 }
 
@@ -108,8 +120,7 @@ function handleInQuestion(
   }
 
   if (isOptionParagraph(p)) {
-    const optText = getOptionText(p, imageToken);
-    st.currentOptions.push(optText);
+    collectOptions(p, st, imageToken);
     st.state = "OPTIONS";
     return;
   }
@@ -126,7 +137,6 @@ function handleInQuestion(
 
   const text = getParagraphText(p, imageToken);
   if (text.trim().length > 0) {
-    // Check for embedded options in question text
     const embedded = tryExtractEmbeddedOptions(getFullTextContent(p));
     if (embedded) {
       const questionPart = getTextBeforeEmbeddedOptions(getFullTextContent(p));
@@ -154,16 +164,34 @@ function handleInOptions(
   }
 
   if (isOptionParagraph(p)) {
-    const optText = getOptionText(p, imageToken);
-    st.currentOptions.push(optText);
+    collectOptions(p, st, imageToken);
     return;
   }
 
-  // Continuation of the last option
+  if (isContentParagraph(p) && !isOptionParagraph(p)) {
+    finalize(st);
+    startUnnumberedQuestion(p, st, imageToken);
+    return;
+  }
+
   const text = getParagraphText(p, imageToken);
   if (text.trim().length > 0 && st.currentOptions.length > 0) {
     const lastIdx = st.currentOptions.length - 1;
     st.currentOptions[lastIdx] = st.currentOptions[lastIdx]! + " " + text;
+  }
+}
+
+function collectOptions(
+  p: ParsedParagraph,
+  st: AssemblerState,
+  imageToken: string,
+): void {
+  if (hasMultipleOptionMarkers(p)) {
+    const parsed = parseMultiOptionNodes(p.nodes, imageToken);
+    st.currentOptions.push(...parsed);
+  } else {
+    const optText = getOptionText(p, imageToken);
+    st.currentOptions.push(optText);
   }
 }
 
@@ -187,7 +215,6 @@ function handleTable(
       break;
     }
     case "layout": {
-      // Recurse into layout table cells as if they were body elements
       for (const row of elem.table.rows) {
         for (const cell of row) {
           const text = getFullTextContent(cell);
@@ -199,7 +226,6 @@ function handleTable(
       break;
     }
     case "data": {
-      // Render as text and append to question
       if (st.state === "QUESTION") {
         const tableText = renderDataTable(elem.table, imageToken);
         st.currentQuestion += "\n" + tableText;
@@ -217,7 +243,28 @@ function startQuestion(
   const rawText = getParagraphText(p, imageToken);
   const text = stripQuestionNumber(rawText);
 
-  // Check for embedded options on the same line
+  const embedded = tryExtractEmbeddedOptions(text);
+  if (embedded) {
+    const questionPart = getTextBeforeEmbeddedOptions(text);
+    st.currentQuestion = questionPart ?? text;
+    st.currentOptions = embedded;
+    st.state = "QUESTION";
+    finalize(st);
+    return;
+  }
+
+  st.currentQuestion = text;
+  st.currentOptions = [];
+  st.state = "QUESTION";
+}
+
+function startUnnumberedQuestion(
+  p: ParsedParagraph,
+  st: AssemblerState,
+  imageToken: string,
+): void {
+  const text = getParagraphText(p, imageToken);
+
   const embedded = tryExtractEmbeddedOptions(text);
   if (embedded) {
     const questionPart = getTextBeforeEmbeddedOptions(text);
@@ -234,9 +281,7 @@ function startQuestion(
 }
 
 function finalize(st: AssemblerState): void {
-  if (
-    st.currentQuestion.trim().length > 0
-  ) {
+  if (st.currentQuestion.trim().length > 0) {
     st.questions.push({
       question: st.currentQuestion.trim(),
       options: st.currentOptions.map((o) => o.trim()).filter((o) => o.length > 0),

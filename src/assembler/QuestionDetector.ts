@@ -9,6 +9,16 @@ export function isQuestionParagraph(p: ParsedParagraph): boolean {
   return QUESTION_START.test(text.trim());
 }
 
+export function isNumberedQuestion(p: ParsedParagraph): boolean {
+  return isQuestionParagraph(p);
+}
+
+export function isContentParagraph(p: ParsedParagraph): boolean {
+  if (isBlankParagraph(p)) return false;
+  const text = getFullTextContent(p);
+  return text.trim().length > 0;
+}
+
 export function isSubPartParagraph(p: ParsedParagraph): boolean {
   const text = getFirstTextContent(p);
   return SUBPART_START.test(text.trim());
