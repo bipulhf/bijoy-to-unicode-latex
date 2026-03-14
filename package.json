@@ -1,0 +1,44 @@
+{
+  "name": "bijoy-to-latex",
+  "version": "0.1.0",
+  "description": "Convert Bijoy Bangla Word (.docx) files to structured question JSON with LaTeX equations",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "bijoy-to-latex": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ tests/",
+    "format": "prettier --write ."
+  },
+  "keywords": ["bijoy", "bangla", "latex", "docx", "equation", "omml", "mathml"],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "fast-xml-parser": "^4.4.1",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "vitest": "^2.1.0",
+    "tsx": "^4.19.0",
+    "tsup": "^8.3.0"
+  }
+}
