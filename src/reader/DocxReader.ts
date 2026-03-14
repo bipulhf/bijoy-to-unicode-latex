@@ -1,11 +1,13 @@
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import { InvalidDocxError } from "../types.js";
-import { parseXml } from "./XmlParser.js";
+import { parseXml, parseXmlOrdered } from "./XmlParser.js";
 import type { XmlNode } from "../types.js";
+import type { OrderedEntry } from "./XmlParser.js";
 
 export interface DocxContent {
   documentXml: XmlNode;
+  documentXmlOrdered: OrderedEntry[];
   stylesXml: XmlNode | null;
   numberingXml: XmlNode | null;
   footnotesXml: XmlNode | null;
@@ -44,6 +46,7 @@ export async function readDocxFromBuffer(buffer: Buffer): Promise<DocxContent> {
 
   return {
     documentXml: parseXml(docXml),
+    documentXmlOrdered: parseXmlOrdered(docXml),
     stylesXml: stylesStr ? parseXml(stylesStr) : null,
     numberingXml: numberingStr ? parseXml(numberingStr) : null,
     footnotesXml: footnotesStr ? parseXml(footnotesStr) : null,

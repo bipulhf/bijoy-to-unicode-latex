@@ -16,6 +16,7 @@ import {
   hasChild,
   getAllChildTags,
   getAttr,
+  type ChildRef,
 } from "../reader/XmlParser.js";
 import { isBijoyFont, hasBijoyMarkers } from "../bijoy/BijoyDetector.js";
 import { convertBijoyToUnicode } from "../bijoy/BijoyConverter.js";
@@ -32,6 +33,7 @@ interface ParserContext {
     totalEquations: number;
     imagesSkipped: number;
   };
+  childOrder?: ChildRef[];
 }
 
 export function parseParagraph(
@@ -50,45 +52,82 @@ export function parseParagraph(
     ? parseIntOrNull(getAttrVal(numPr, "w:ilvl", "w:val"))
     : null;
 
-  const childTags = getAllChildTags(pNode);
-
-  for (const tag of childTags) {
-    if (tag === "w:pPr") continue;
-
-    const children = getChildren(pNode, tag);
-    for (const child of children) {
-      switch (tag) {
-        case "w:r":
-          processRun(child, nodes, ctx);
-          break;
-        case "m:oMath":
-          processEquation(child, pNode, nodes, ctx);
-          break;
-        case "m:oMathPara":
-          processOmathPara(child, nodes, ctx);
-          break;
-        case "w:ins":
-          processInsert(child, nodes, ctx);
-          break;
-        case "w:del":
-          break;
-        case "w:drawing":
-        case "w:pict":
-          processImage(child, nodes, ctx);
-          break;
-        case "w:sdt": {
-          const sdtContent = getChild(child, "w:sdtContent");
-          if (sdtContent) {
-            const innerPara = parseParagraph(sdtContent, ctx);
-            nodes.push(...innerPara.nodes);
-          }
-          break;
-        }
-      }
-    }
+  if (ctx.childOrder) {
+    processInOrder(pNode, ctx.childOrder, nodes, ctx);
+  } else {
+    processGrouped(pNode, nodes, ctx);
   }
 
   return { nodes, styleId, numId, ilvl };
+}
+
+function processInOrder(
+  pNode: XmlNode,
+  childOrder: ChildRef[],
+  nodes: DocNode[],
+  ctx: ParserContext,
+): void {
+  for (const { tag, index } of childOrder) {
+    if (tag === "w:pPr") continue;
+
+    const children = getChildren(pNode, tag);
+    const child = children[index];
+    if (!child) continue;
+
+    processTagChild(tag, child, pNode, nodes, ctx);
+  }
+}
+
+function processGrouped(
+  pNode: XmlNode,
+  nodes: DocNode[],
+  ctx: ParserContext,
+): void {
+  const childTags = getAllChildTags(pNode);
+  for (const tag of childTags) {
+    if (tag === "w:pPr") continue;
+    const children = getChildren(pNode, tag);
+    for (const child of children) {
+      processTagChild(tag, child, pNode, nodes, ctx);
+    }
+  }
+}
+
+function processTagChild(
+  tag: string,
+  child: XmlNode,
+  pNode: XmlNode,
+  nodes: DocNode[],
+  ctx: ParserContext,
+): void {
+  switch (tag) {
+    case "w:r":
+      processRun(child, nodes, ctx);
+      break;
+    case "m:oMath":
+      processEquation(child, pNode, nodes, ctx);
+      break;
+    case "m:oMathPara":
+      processOmathPara(child, nodes, ctx);
+      break;
+    case "w:ins":
+      processInsert(child, nodes, ctx);
+      break;
+    case "w:del":
+      break;
+    case "w:drawing":
+    case "w:pict":
+      processImage(child, nodes, ctx);
+      break;
+    case "w:sdt": {
+      const sdtContent = getChild(child, "w:sdtContent");
+      if (sdtContent) {
+        const innerPara = parseParagraph(sdtContent, ctx);
+        nodes.push(...innerPara.nodes);
+      }
+      break;
+    }
+  }
 }
 
 function processRun(
@@ -104,7 +143,6 @@ function processRun(
   const bold = rPr ? hasChild(rPr, "w:b") : false;
   const italic = rPr ? hasChild(rPr, "w:i") : false;
 
-  // Check for embedded drawings/images in the run
   const drawings = getChildren(runNode, "w:drawing");
   for (const drawing of drawings) {
     processImage(drawing, nodes, ctx);

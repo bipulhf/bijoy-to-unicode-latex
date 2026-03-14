@@ -5,7 +5,14 @@ import type {
   ConvertOptions,
   ConversionStats,
 } from "../types.js";
-import { getChild, getChildren, getAllChildTags } from "../reader/XmlParser.js";
+import {
+  getChild,
+  getChildren,
+  oFindChild,
+  oGetChildSequence,
+  type OrderedEntry,
+  type ChildRef,
+} from "../reader/XmlParser.js";
 import { parseParagraph } from "./ParagraphParser.js";
 import { parseTable } from "./TableParser.js";
 
@@ -23,6 +30,7 @@ interface WalkerContext {
 export function walkDocument(
   documentXml: XmlNode,
   options: ConvertOptions,
+  documentXmlOrdered?: OrderedEntry[],
 ): { elements: BodyElement[]; stats: Omit<ConversionStats, "totalQuestions"> } {
   const ctx: WalkerContext = {
     warnings: [],
@@ -35,10 +43,16 @@ export function walkDocument(
     },
   };
 
-  const doc =
-    getChild(documentXml, "w:document") ?? documentXml;
+  const doc = getChild(documentXml, "w:document") ?? documentXml;
   const body = getChild(doc, "w:body") ?? doc;
-  const elements = walkBody(body, ctx, 0);
+
+  let orderedBody: OrderedEntry[] | undefined;
+  if (documentXmlOrdered) {
+    const oDoc = oFindChild(documentXmlOrdered, "w:document");
+    orderedBody = oDoc ? oFindChild(oDoc, "w:body") : undefined;
+  }
+
+  const elements = walkBody(body, orderedBody, ctx, 0);
 
   return {
     elements,
@@ -51,6 +65,7 @@ export function walkDocument(
 
 function walkBody(
   bodyNode: XmlNode,
+  orderedBody: OrderedEntry[] | undefined,
   ctx: WalkerContext,
   depth: number,
 ): BodyElement[] {
@@ -67,50 +82,98 @@ function walkBody(
   const elements: BodyElement[] = [];
   let paragraphIndex = 0;
 
-  const tags = getAllChildTags(bodyNode);
+  const childSequence = orderedBody
+    ? oGetChildSequence(orderedBody)
+    : fallbackChildSequence(bodyNode);
 
-  for (const tag of tags) {
-    const children = getChildren(bodyNode, tag);
+  for (const { tag, index } of childSequence) {
+    const child = getChildren(bodyNode, tag)[index];
+    if (!child) continue;
 
-    for (const child of children) {
-      switch (tag) {
-        case "w:p": {
-          const para = parseParagraph(child, {
-            warnings: ctx.warnings,
-            paragraphIndex,
-            options: ctx.options,
-            stats: ctx.stats,
-          });
-          elements.push({ type: "paragraph", paragraph: para });
-          paragraphIndex++;
-          break;
-        }
-        case "w:tbl": {
-          const table = parseTable(child, {
-            warnings: ctx.warnings,
-            paragraphIndex,
-            options: ctx.options,
-            stats: ctx.stats,
-          });
-          elements.push({ type: "table", table });
-          break;
-        }
-        case "w:sdt": {
-          const sdtContent = getChild(child, "w:sdtContent");
-          if (sdtContent) {
-            const innerElements = walkBody(sdtContent, ctx, depth + 1);
-            elements.push(...innerElements);
-          }
-          break;
-        }
-        case "w:txbxContent": {
-          const innerElements = walkBody(child, ctx, depth + 1);
+    const orderedChild = orderedBody
+      ? getOrderedChildByRef(orderedBody, tag, index)
+      : undefined;
+
+    switch (tag) {
+      case "w:p": {
+        const childOrder = orderedChild
+          ? oGetChildSequence(orderedChild)
+          : undefined;
+        const para = parseParagraph(child, {
+          warnings: ctx.warnings,
+          paragraphIndex,
+          options: ctx.options,
+          stats: ctx.stats,
+          childOrder,
+        });
+        elements.push({ type: "paragraph", paragraph: para });
+        paragraphIndex++;
+        break;
+      }
+      case "w:tbl": {
+        const table = parseTable(child, {
+          warnings: ctx.warnings,
+          paragraphIndex,
+          options: ctx.options,
+          stats: ctx.stats,
+        });
+        elements.push({ type: "table", table });
+        break;
+      }
+      case "w:sdt": {
+        const sdtContent = getChild(child, "w:sdtContent");
+        const orderedSdtContent = orderedChild
+          ? oFindChild(orderedChild, "w:sdtContent")
+          : undefined;
+        if (sdtContent) {
+          const innerElements = walkBody(
+            sdtContent,
+            orderedSdtContent,
+            ctx,
+            depth + 1,
+          );
           elements.push(...innerElements);
-          break;
         }
+        break;
+      }
+      case "w:txbxContent": {
+        const innerElements = walkBody(child, orderedChild, ctx, depth + 1);
+        elements.push(...innerElements);
+        break;
       }
     }
   }
 
   return elements;
+}
+
+function fallbackChildSequence(node: XmlNode): ChildRef[] {
+  const seq: ChildRef[] = [];
+  const tags = Object.keys(node).filter(
+    (k) => !k.startsWith("@_") && k !== "#text",
+  );
+  for (const tag of tags) {
+    const children = getChildren(node, tag);
+    for (let i = 0; i < children.length; i++) {
+      seq.push({ tag, index: i });
+    }
+  }
+  return seq;
+}
+
+function getOrderedChildByRef(
+  orderedEntries: OrderedEntry[],
+  tag: string,
+  index: number,
+): OrderedEntry[] | undefined {
+  let count = 0;
+  for (const entry of orderedEntries) {
+    if (tag in entry) {
+      if (count === index) {
+        return entry[tag] as OrderedEntry[];
+      }
+      count++;
+    }
+  }
+  return undefined;
 }

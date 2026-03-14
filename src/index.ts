@@ -30,7 +30,11 @@ export async function convertBuffer(
   options: ConvertOptions = {},
 ): Promise<ConversionResult> {
   const docx = await readDocxFromBuffer(buffer);
-  const { elements, stats } = walkDocument(docx.documentXml, options);
+  const { elements, stats } = walkDocument(
+    docx.documentXml,
+    options,
+    docx.documentXmlOrdered,
+  );
   const questions = assembleQuestions(elements, options, stats.warnings);
 
   return {

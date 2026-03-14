@@ -54,6 +54,13 @@ const parserOptions = {
 
 const parser = new XMLParser(parserOptions);
 
+const orderedParser = new XMLParser({
+  ignoreAttributes: true,
+  preserveOrder: true,
+  trimValues: false,
+  parseTagValue: false,
+});
+
 const builder = new XMLBuilder({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -66,9 +73,15 @@ export function parseXml(xml: string): XmlNode {
   return parser.parse(xml) as XmlNode;
 }
 
+export function parseXmlOrdered(xml: string): OrderedEntry[] {
+  return orderedParser.parse(xml) as OrderedEntry[];
+}
+
 export function buildXml(node: XmlNode): string {
   return builder.build(node) as string;
 }
+
+// --- Normal (unordered) tree helpers ---
 
 export function getChild(node: XmlNode, tagName: string): XmlNode | undefined {
   const val = node[tagName];
@@ -94,8 +107,6 @@ export function getAttr(node: XmlNode, attrName: string): string | undefined {
 }
 
 export function getTextContent(node: XmlNode): string {
-  // fast-xml-parser returns text-only elements as raw strings/numbers
-  // when they appear inside isArray tags (e.g. m:t with content "-2")
   const raw = node as unknown;
   if (typeof raw === "string") return raw;
   if (typeof raw === "number") return String(raw);
@@ -124,4 +135,52 @@ export function getAllChildTags(node: XmlNode): string[] {
   return Object.keys(node).filter(
     (k) => !k.startsWith("@_") && k !== "#text",
   );
+}
+
+// --- Ordered tree types and helpers ---
+
+export type OrderedEntry = Record<string, unknown>;
+
+export function oFindChild(
+  entries: OrderedEntry[],
+  tag: string,
+): OrderedEntry[] | undefined {
+  for (const entry of entries) {
+    if (tag in entry) {
+      return entry[tag] as OrderedEntry[];
+    }
+  }
+  return undefined;
+}
+
+export function oIterateChildren(
+  entries: OrderedEntry[],
+): Array<{ tag: string; children: OrderedEntry[] }> {
+  const result: Array<{ tag: string; children: OrderedEntry[] }> = [];
+  for (const entry of entries) {
+    for (const key of Object.keys(entry)) {
+      if (key === ":@" || key === "#text") continue;
+      result.push({ tag: key, children: entry[key] as OrderedEntry[] });
+    }
+  }
+  return result;
+}
+
+export interface ChildRef {
+  tag: string;
+  index: number;
+}
+
+export function oGetChildSequence(entries: OrderedEntry[]): ChildRef[] {
+  const counts = new Map<string, number>();
+  const seq: ChildRef[] = [];
+  for (const entry of entries) {
+    for (const key of Object.keys(entry)) {
+      if (key === ":@" || key === "#text") continue;
+      const idx = counts.get(key) ?? 0;
+      seq.push({ tag: key, index: idx });
+      counts.set(key, idx + 1);
+    }
+  }
+  return seq;
 }
