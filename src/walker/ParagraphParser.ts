@@ -19,7 +19,12 @@ import {
   type ChildRef,
 } from "../reader/XmlParser.js";
 import { isBijoyFont, hasBijoyMarkers } from "../bijoy/BijoyDetector.js";
-import { convertBijoyToUnicode } from "../bijoy/BijoyConverter.js";
+import {
+  convertBijoyToUnicode,
+  isBanglaConsonant,
+  isBanglaPreKar,
+  BANGLA_HALANT,
+} from "../bijoy/BijoyConverter.js";
 import { ommlToLatex } from "../equations/OmmlDirectWalker.js";
 import { wrapLatex } from "../equations/LatexWrapper.js";
 import { extractOmmlNodes } from "../equations/OmmlExtractor.js";
@@ -57,6 +62,8 @@ export function parseParagraph(
   } else {
     processGrouped(pNode, nodes, ctx);
   }
+
+  fixBijoyCrossRunIssues(nodes);
 
   return { nodes, styleId, numId, ilvl };
 }
@@ -128,6 +135,87 @@ function processTagChild(
       break;
     }
   }
+}
+
+function fixBijoyCrossRunIssues(nodes: DocNode[]): void {
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const curr = nodes[i]!;
+    const next = nodes[i + 1]!;
+    if (curr.type !== "text" || next.type !== "text") continue;
+    if (!curr.text || !next.text) continue;
+
+    const lastIdx = curr.text.length - 1;
+    const lastChar = curr.text[lastIdx]!;
+
+    if (!isBanglaPreKar(lastChar)) {
+      fixEKarAaKarBoundary(curr, next);
+      continue;
+    }
+
+    const nextFirst = next.text[0]!;
+    const nextStartsWithHalant = nextFirst === BANGLA_HALANT;
+    const prevIsConsonant =
+      lastIdx > 0 && isBanglaConsonant(curr.text[lastIdx - 1]!);
+
+    if (nextStartsWithHalant || !prevIsConsonant) {
+      curr.text = curr.text.slice(0, -1);
+      next.text = insertPreKar(lastChar, next.text);
+    }
+  }
+}
+
+function fixEKarAaKarBoundary(
+  curr: RunNode,
+  next: RunNode,
+): void {
+  if (curr.text.length < 2) return;
+  const last = curr.text[curr.text.length - 1]!;
+  const secondLast = curr.text[curr.text.length - 2]!;
+
+  if (last !== "\u09C7" || !isBanglaConsonant(secondLast)) return;
+
+  const nextFirst = next.text[0];
+  if (nextFirst === "\u09BE") {
+    curr.text = curr.text.slice(0, -1) + "\u09CB";
+    next.text = next.text.slice(1);
+  } else if (nextFirst === "\u09D7") {
+    curr.text = curr.text.slice(0, -1) + "\u09CC";
+    next.text = next.text.slice(1);
+  }
+}
+
+function insertPreKar(preKar: string, text: string): string {
+  let j = 0;
+
+  if (text[0] === BANGLA_HALANT) {
+    while (
+      j < text.length - 1 &&
+      text[j] === BANGLA_HALANT &&
+      isBanglaConsonant(text[j + 1]!)
+    ) {
+      j += 2;
+    }
+  } else {
+    while (j < text.length && isBanglaConsonant(text[j]!)) {
+      if (j + 1 < text.length && text[j + 1] === BANGLA_HALANT) {
+        j += 2;
+      } else {
+        j += 1;
+        break;
+      }
+    }
+  }
+
+  if (j === 0) return preKar + text;
+
+  if (preKar === "\u09C7" && j < text.length && text[j] === "\u09BE") {
+    return text.substring(0, j) + "\u09CB" + text.substring(j + 1);
+  }
+  if (preKar === "\u09C7" && j < text.length && text[j] === "\u09D7") {
+    return text.substring(0, j) + "\u09CC" + text.substring(j + 1);
+  }
+
+  return text.substring(0, j) + preKar + text.substring(j);
 }
 
 function processRun(

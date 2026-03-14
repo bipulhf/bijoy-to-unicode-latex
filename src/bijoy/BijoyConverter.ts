@@ -243,6 +243,8 @@ function cleanupText(text: string): string {
   return result.normalize("NFC");
 }
 
+export { isBanglaConsonant, isBanglaPreKar, BANGLA_HALANT };
+
 export function convertBijoyToUnicode(text: string): string {
   let result = applyMultiCharSequences(text);
   result = applySingleCharMap(result);
