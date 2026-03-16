@@ -1,13 +1,10 @@
 import { MULTI_CHAR_MAP, SINGLE_CHAR_MAP } from "./charmap.js";
 
-const BANGLA_CONSONANT =
-  /[\u0995-\u09B9\u09DC-\u09DF\u09CE]/;
+const BANGLA_CONSONANT = /[\u0995-\u09B9\u09DC-\u09DF\u09CE]/;
 
-const BANGLA_KAR =
-  /[\u09BE-\u09C8\u09CB-\u09CC\u09D7]/;
+const BANGLA_KAR = /[\u09BE-\u09C8\u09CB-\u09CC\u09D7]/;
 
-const BANGLA_PRE_KAR =
-  /[\u09BF\u09C7\u09C8]/;
+const BANGLA_PRE_KAR = /[\u09BF\u09C7\u09C8]/;
 
 const BANGLA_HALANT = "\u09CD";
 
@@ -32,7 +29,8 @@ function applyMultiCharSequences(text: string): string {
   for (const [bijoy, unicode] of MULTI_CHAR_MAP) {
     let idx = result.indexOf(bijoy);
     while (idx !== -1) {
-      result = result.slice(0, idx) + unicode + result.slice(idx + bijoy.length);
+      result =
+        result.slice(0, idx) + unicode + result.slice(idx + bijoy.length);
       idx = result.indexOf(bijoy, idx + unicode.length);
     }
   }
@@ -87,11 +85,14 @@ function rearrangeUnicode(str: string): string {
     }
 
     // Reph movement: র্ before consonant cluster
+    // Only move reph if it is NOT already directly followed by a consonant
+    // (when © is typed before the consonant in Bijoy, র্ is already in correct Unicode order)
     if (
       i < result.length - 1 &&
       result[i] === "\u09B0" &&
       result[i + 1] === BANGLA_HALANT &&
-      (i === 0 || result[i - 1] !== BANGLA_HALANT)
+      (i === 0 || result[i - 1] !== BANGLA_HALANT) &&
+      (i + 2 >= result.length || !isBanglaConsonant(result[i + 2]!))
     ) {
       let j = 1;
       while (true) {
@@ -109,7 +110,9 @@ function rearrangeUnicode(str: string): string {
         }
       }
 
-      if (j > 0 && i - j >= 0) {
+      // Don't move reph over a multi-consonant conjunct when at end of string:
+      // it likely belongs to the next run (cross-run split scenario)
+      if (j > 0 && i - j >= 0 && !(i + 2 >= result.length && j > 1)) {
         result =
           result.substring(0, i - j) +
           result[i]! +
@@ -128,14 +131,8 @@ function rearrangeUnicode(str: string): string {
       !isSpace(result[i + 1]!)
     ) {
       let j = 1;
-      while (
-        i + j < result.length &&
-        isBanglaConsonant(result[i + j]!)
-      ) {
-        if (
-          i + j + 1 < result.length &&
-          result[i + j + 1] === BANGLA_HALANT
-        ) {
+      while (i + j < result.length && isBanglaConsonant(result[i + j]!)) {
+        if (i + j + 1 < result.length && result[i + j + 1] === BANGLA_HALANT) {
           j += 2;
         } else {
           break;
@@ -191,8 +188,7 @@ function rearrangeUnicode(str: string): string {
     ) {
       const vowel = mapKarToSwarabarna(result[i + 1]!);
       if (vowel) {
-        result =
-          result.substring(0, i) + vowel + result.substring(i + 2);
+        result = result.substring(0, i) + vowel + result.substring(i + 2);
       }
     }
   }
@@ -213,31 +209,42 @@ function isBanglaPostKar(ch: string): boolean {
     ch === "\u09C1" || // ু
     ch === "\u09C2" || // ূ
     ch === "\u09C0" || // ী
-    ch === "\u09C3"    // ৃ
+    ch === "\u09C3" // ৃ
   );
 }
 
 function mapKarToSwarabarna(kar: string): string | null {
   switch (kar) {
-    case "\u09BE": return "\u0986";  // া → আ
-    case "\u09BF": return "\u0987";  // ি → ই
-    case "\u09C0": return "\u0988";  // ী → ঈ
-    case "\u09C1": return "\u0989";  // ু → উ
-    case "\u09C2": return "\u098A";  // ূ → ঊ
-    case "\u09C3": return "\u098B";  // ৃ → ঋ
-    case "\u09C7": return "\u098F";  // ে → এ
-    case "\u09C8": return "\u0990";  // ৈ → ঐ
-    case "\u09CB": return "\u0993";  // ো → ও
-    case "\u09CC": return "\u0994";  // ৌ → ঔ
-    default: return null;
+    case "\u09BE":
+      return "\u0986"; // া → আ
+    case "\u09BF":
+      return "\u0987"; // ি → ই
+    case "\u09C0":
+      return "\u0988"; // ী → ঈ
+    case "\u09C1":
+      return "\u0989"; // ু → উ
+    case "\u09C2":
+      return "\u098A"; // ূ → ঊ
+    case "\u09C3":
+      return "\u098B"; // ৃ → ঋ
+    case "\u09C7":
+      return "\u098F"; // ে → এ
+    case "\u09C8":
+      return "\u0990"; // ৈ → ঐ
+    case "\u09CB":
+      return "\u0993"; // ো → ও
+    case "\u09CC":
+      return "\u0994"; // ৌ → ঔ
+    default:
+      return null;
   }
 }
 
 function cleanupText(text: string): string {
   // অ + া → আ
   let result = text.replace(/\u0985\u09BE/g, "\u0986");
-  // Remove orphan hasanta at word boundaries
-  result = result.replace(/\u09CD(?=\s|$)/g, "");
+  // Remove orphan hasanta at word boundaries, but NOT রেফ (র্) which may belong to the next run
+  result = result.replace(/(?<!\u09B0)\u09CD(?=\s|$)/g, "");
   // Remove duplicate ZWNJ
   result = result.replace(/\u200C{2,}/g, "\u200C");
   return result.normalize("NFC");

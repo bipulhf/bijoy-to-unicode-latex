@@ -51,7 +51,7 @@ export function parseParagraph(
   const nodes: DocNode[] = [];
 
   const pPr = getChild(pNode, "w:pPr");
-  const styleId = pPr ? getAttrVal(pPr, "w:pStyle", "w:val") ?? null : null;
+  const styleId = pPr ? (getAttrVal(pPr, "w:pStyle", "w:val") ?? null) : null;
   const numPr = pPr ? getChild(pPr, "w:numPr") : undefined;
   const numId = numPr
     ? parseIntOrNull(getAttrVal(numPr, "w:numId", "w:val"))
@@ -152,6 +152,43 @@ function fixBijoyCrossRunIssues(nodes: DocNode[]): void {
     if (curr.type !== "text" || next.type !== "text") continue;
     if (!curr.text || !next.text) continue;
 
+    // Handle orphaned রেফ (র্) at end of run: it belongs to the next run's consonant
+    if (
+      curr.text.length >= 2 &&
+      curr.text[curr.text.length - 2] === "\u09B0" &&
+      curr.text[curr.text.length - 1] === BANGLA_HALANT
+    ) {
+      curr.text = curr.text.slice(0, -2);
+      next.text = "\u09B0\u09CD" + next.text;
+      continue;
+    }
+
+    // Handle orphaned রেফ (র্) at start of next run: it belongs to curr run's last consonant
+    // Only when র্ is NOT followed by a consonant in the next run (i.e. it is isolated)
+    if (
+      next.text.length >= 2 &&
+      next.text[0] === "\u09B0" &&
+      next.text[1] === BANGLA_HALANT &&
+      (next.text.length === 2 || !isBanglaConsonant(next.text[2]!))
+    ) {
+      // Find the last consonant in curr.text to insert রেফ before it
+      let insertAt = -1;
+      for (let j = curr.text.length - 1; j >= 0; j--) {
+        if (isBanglaConsonant(curr.text[j]!)) {
+          insertAt = j;
+          break;
+        }
+      }
+      if (insertAt >= 0) {
+        curr.text =
+          curr.text.slice(0, insertAt) +
+          "\u09B0\u09CD" +
+          curr.text.slice(insertAt);
+        next.text = next.text.slice(2);
+        continue;
+      }
+    }
+
     const lastIdx = curr.text.length - 1;
     const lastChar = curr.text[lastIdx]!;
 
@@ -172,10 +209,7 @@ function fixBijoyCrossRunIssues(nodes: DocNode[]): void {
   }
 }
 
-function fixEKarAaKarBoundary(
-  curr: RunNode,
-  next: RunNode,
-): void {
+function fixEKarAaKarBoundary(curr: RunNode, next: RunNode): void {
   if (curr.text.length < 2) return;
   const last = curr.text[curr.text.length - 1]!;
   const secondLast = curr.text[curr.text.length - 2]!;
@@ -253,7 +287,9 @@ function processRun(
     let text = getTextContent(tNode);
     if (!text) continue;
 
-    const bijoy = !ctx.options.skipBijoy && (isBijoyFont(fontName) || (!fontName && hasBijoyMarkers(text)));
+    const bijoy =
+      !ctx.options.skipBijoy &&
+      (isBijoyFont(fontName) || (!fontName && hasBijoyMarkers(text)));
 
     if (bijoy) {
       text = convertBijoyToUnicode(text);

@@ -77,6 +77,29 @@ describe("convertBijoyToUnicode", () => {
     });
   });
 
+  describe("reph (রেফ) handling", () => {
+    it("converts reph before consonant (© before k): স্পর্শ", () => {
+      // ¯ú©k: স্প + © + শ → স্পর্শ
+      expect(convertBijoyToUnicode("\u00AF\u00FA\u00A9\u006B")).toBe("স্পর্শ");
+    });
+
+    it("preserves রেফ at end of fragment when split across runs: ¯ú© alone → স্পর্", () => {
+      // When ¯ú© is at the end of a run (before k in the next run),
+      // the রেফ must NOT be moved to the front of স্প.
+      expect(convertBijoyToUnicode("\u00AF\u00FA\u00A9")).toBe("স্পর্");
+    });
+
+    it("converts reph after consonant (k© then next run continues): র্শ", () => {
+      // k©: শ + © → র্শ (reph on শ)
+      expect(convertBijoyToUnicode("\u006B\u00A9")).toBe("র্শ");
+    });
+
+    it("converts কর্ম (karma) correctly", () => {
+      // K©g: ক + © + ম → কর্ম
+      expect(convertBijoyToUnicode("K\u00A9g")).toBe("কর্ম");
+    });
+  });
+
   describe("NFC normalization and cleanup", () => {
     it("produces NFC-normalized output", () => {
       const result = convertBijoyToUnicode("Kvg");
