@@ -894,7 +894,7 @@
         const form = new FormData();
         form.append("file", file);
         try {
-          const res = await fetch("/api/convert", {
+          const res = await fetch("/converter/api/convert", {
             method: "POST",
             body: form,
           });
