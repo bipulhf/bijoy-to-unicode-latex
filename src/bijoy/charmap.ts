@@ -6,7 +6,7 @@ export const MULTI_CHAR_MAP: [string, string][] = [
   // 4+ char sequences
   ["\u00AF\u00FA\u00A9\u006B", "\u09B8\u09CD\u09AA\u09B0\u09CD\u09B6"], // ¯ú©k → স্পর্শ
   ["\u00AF\u00FA\u006B\u00A9", "\u09B8\u09CD\u09AA\u09B0\u09CD\u09B6"], // ¯úk© → স্পর্শ
-  ["\u201C\u0051\u00A1", "\u099A\u09CD\u099B\u09CD\u09AC"], // "Q¡ → চ্ছ্ব
+  ["\u201D\u0051\u00A1", "\u099A\u09CD\u099B\u09CD\u09AC"], // "Q¡ → চ্ছ্ব
   ["\u0060\u00AA\u201D", "\u09A6\u09CD\u09B0\u09C1"], // `ª" → দ্রু
   ["\u0161\u2014\u00A1", "\u09A8\u09CD\u09A4\u09CD\u09AC"], // š—¡ → ন্ত্ব
   ["\u00A4\u00A3", "\u09AE\u09CD\u09AD\u09CD\u09B0"], // ¤£ → ম্ভ্র
@@ -48,9 +48,9 @@ export const MULTI_CHAR_MAP: [string, string][] = [
   ["i\u00A8", "\u09B0\u200C\u09CD\u09AF"], // i¨ → র‌্য
 
   // 2 char sequences
-  ["\u201C\u0050", "\u099A\u09CD\u099A"], // "P → চ্চ
-  ["\u201C\u0051", "\u099A\u09CD\u099B"], // "Q → চ্ছ
-  ["\u201C\u0054", "\u099A\u09CD\u099E"], // "T → চ্ঞ
+  ["\u201D\u0050", "\u099A\u09CD\u099A"], // "P → চ্চ
+  ["\u201D\u0051", "\u099A\u09CD\u099B"], // "Q → চ্ছ
+  ["\u201D\u0054", "\u099A\u09CD\u099E"], // "T → চ্ঞ
   ["K\u00A1", "\u0995\u09CD\u09AC"], // K¡ → ক্ব
   ["K\u00AC", "\u0995\u09CD\u09B2"], // K¬ → ক্ল
   ["M\u0153", "\u0997\u09CD\u09A8"], // Mœ → গ্ন
@@ -80,7 +80,7 @@ export const MULTI_CHAR_MAP: [string, string][] = [
   ["e\u0178", "\u09AC\u09CD\u09AC"], // eŸ → ব্ব
   ["e\u00AD", "\u09AC\u09CD\u09B2"], // e­ → ব্ল
   ["g\u0153", "\u09AE\u09CD\u09A8"], // gœ → ম্ন
-  ["i\u201D", "\u09B0\u09C1"], // i" → রু
+  ["i\u201C", "\u09B0\u09C1"], // i" → রু
   ["i\u00E6", "\u09B0\u09C1"], // iæ → রু
   ["i\u0192", "\u09B0\u09C2"], // iƒ → রূ
   ["j\u00A6", "\u09B2\u09CD\u09AC"], // j¦ → ল্ব
@@ -94,6 +94,7 @@ export const MULTI_CHAR_MAP: [string, string][] = [
   ["m\u0153", "\u09B8\u09CD\u09A8"], // mœ → স্ন
   ["n\u00E8", "\u09B9\u09CD\u09A3"], // nè → হ্ণ
   ["n\u00AC", "\u09B9\u09CD\u09B2"], // n¬ → হ্ল
+  ["\u201E\u201E", "\u09C3"], // „„ → ৃ (double ri-kar normalised)
   ["Av", "\u0986"], // Av → আ
 ];
 
@@ -227,6 +228,8 @@ export const SINGLE_CHAR_MAP: Record<string, string> = {
   "\u00CC": "\u09A4\u09CD\u09A5", // Ì → ত্থ
   "\u00CE": "\u09A4\u09CD\u09B0", // Î → ত্র
   "\u00CF": "\u09A6\u09CD\u09A6", // Ï → দ্দ
+  "\u00D0": "-", // Ð → - (dash/hyphen)
+  "\u00D1": "-", // Ñ → - (dash/hyphen)
   "\u00D7": "\u09A6\u09CD\u09A7", // × → দ্ধ
   "\u00D8": "\u09A6\u09CD\u09AC", // Ø → দ্ব
   "\u00D9": "\u09A6\u09CD\u09AE", // Ù → দ্ম
@@ -263,5 +266,55 @@ export const SINGLE_CHAR_MAP: Record<string, string> = {
   "\u00FE": "\u09B9\u09CD\u09AE", // þ → হ্ম
 
   // Windows-1252 chars used in multi-char conjuncts as standalone fallbacks
-  "\u2022": "\u0995\u09CD\u09B8", // • → ক্স (when not part of longer sequence)
+  "\u2022": "\u0999\u09CD", // • → ঙ্ (standalone; •¶/•L/•N handled in multi-char)
+
+  // ASCII characters with Bengali meanings in Bijoy encoding
+  '"': "\u09C1", // " (U+0022) → ু (u-kar variant)
+  "^": "\u09CD\u09AC", // ^ → ্ব (ba-phala)
+
+  // Conjunct prefix/suffix fallbacks (Latin-1 Supplement range)
+  // These fire when the character appears without a recognised preceding consonant
+  "\u00A1": "\u09CD\u09AC", // ¡ → ্ব
+  "\u00A2": "\u09CD\u09AD", // ¢ → ্ভ
+  "\u00A3": "\u09CD\u09AD\u09CD\u09B0", // £ → ্ভ্র
+  "\u00A4": "\u09AE\u09CD", // ¤ → ম্
+  "\u00A5": "\u09CD\u09AE", // ¥ → ্ম
+  "\u00A6": "\u09CD\u09AC", // ¦ → ্ব
+  "\u00A7": "\u09CD\u09AE", // § → ্ম
+  "\u00AC": "\u09CD\u09B2", // ¬ → ্ল
+  "\u00AD": "\u09CD\u09B2", // ­ → ্ল (soft-hyphen used as ্ল in Bijoy)
+  "\u00AE": "\u09B7\u09CD", // ® → ষ্
+  "\u00AF": "\u09B8\u09CD", // ¯ → স্
+  "\u00B2": "\u0995\u09CD\u09B7\u09CD\u09A3", // ² → ক্ষ্ণ
+  "\u00B4": "\u0995\u09CD\u09AE", // ´ → ক্ম
+  "\u00B9": "\u099C\u09CD\u099E", // ¹ → জ্ঞ
+  "\u00BA": "\u0997\u09CD\u09A6", // º → গ্দ
+  "\u00BF": "\u09CD\u09A4\u09CD\u09B0", // ¿ → ্ত্র
+  "\u00CD": "\u09A4\u09CD\u09AE", // Í → ত্ম
+  "\u00DA": "\u09A8\u09CD\u09A0", // Ú → ন্ঠ
+  "\u00E6": "\u09AE\u09CD\u09A8", // æ → ম্ন (standalone; iæ → রু handled in multi-char)
+  "\u00E8": "\u09CD\u09A8", // è → ্ন (standalone; nè handled in multi-char)
+  "\u00F1": "\u09B6\u09CD\u099B", // ñ → শ্ছ
+  "\u00F8": "\u09B8\u09CD\u09A8", // ø → স্ন (standalone; cø/jø/kø handled in multi-char)
+  "\u00FA": "\u09CD\u09AA", // ú → ্প (standalone; ¯ú/®ú/¤ú handled in multi-char)
+
+  // Latin Extended-A / B fallbacks
+  "\u0152": "\u09CD\u0995\u09CD\u09B0", // Œ → ্ক্র (standalone; ¯Œ/®Œ handled in multi-char)
+  "\u0153": "\u09CD\u09A8", // œ → ্ন (standalone; bœ/gœ/kœ/mœ handled in multi-char)
+  "\u0161": "\u09A8\u09CD", // š → ন্ (standalone; many compounds in multi-char)
+  "\u0178": "\u09CD\u09AC", // Ÿ → ্ব (standalone; aŸ/eŸ handled in multi-char)
+  "\u0192": "\u09C2", // ƒ → ূ (standalone; iƒ → রূ handled in multi-char)
+
+  // Spacing Modifier / General Punctuation fallbacks
+  "\u02DC": "\u09A6\u09CD", // ˜ → দ্ (standalone; ˜M/˜N handled in multi-char)
+  "\u201A": "\u09C2", // ‚ → ূ (u-kar variant)
+  "\u201C": "\u09C1", // " → ু (u-kar; i" → রু handled in multi-char)
+  "\u201D": "\u099A\u09CD", // " → চ্ (standalone; "P/"Q/"T handled in multi-char)
+  "\u2013": "\u09C1", // – → ু (u-kar variant)
+  "\u2014": "\u09CD\u09A4", // — → ্ত (standalone; š—/¯— etc. handled in multi-char)
+  "\u2018": "\u09CD\u09A4\u09C1", // ' → ্তু (standalone; š' etc. handled in multi-char)
+  "\u2019": "\u09CD\u09A5", // ' → ্থ (standalone; š' etc. handled in multi-char)
+  "\u2039": "\u09CD\u0995", // ‹ → ্ক (standalone; ¯‹/®‹ etc. handled in multi-char)
+  "\u203A": "\u09A8\u09CD", // › → ন্ (standalone; ›U/›` etc. handled in multi-char)
+  "\u2122": "\u09A6\u09CD", // ™ → দ্ (standalone; ™¢ handled in multi-char)
 };

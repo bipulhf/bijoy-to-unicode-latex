@@ -719,7 +719,7 @@
             </button>
           </div>
           <div style="display: flex; gap: 8px">
-            <button class="btn btn-ghost" id="copyAllTextBtn">
+            <!-- <button class="btn btn-ghost" id="copyAllTextBtn">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
@@ -734,7 +734,7 @@
                 />
               </svg>
               Copy All Text
-            </button>
+            </button> -->
             <button class="btn btn-accent" id="copyAllJsonBtn">
               <svg
                 viewBox="0 0 24 24"
@@ -980,10 +980,10 @@
         actions.appendChild(
           makeIconBtn(COPY_SVG, "Copy question", () => q.question, false),
         );
-        if (q.options.length)
-          actions.appendChild(
-            makeIconBtn(COPY_SVG, "Copy all", () => buildCopyText(q), false),
-          );
+        // if (q.options.length)
+        //   actions.appendChild(
+        //     makeIconBtn(COPY_SVG, "Copy all", () => buildCopyText(q), false),
+        //   );
         const delQBtn = makeIconBtn(TRASH_SVG, "Delete question", null, true);
         delQBtn.classList.add("icon-btn-danger");
         delQBtn.addEventListener("click", () => deleteQuestion(qi));
