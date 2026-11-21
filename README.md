@@ -32,7 +32,7 @@ Bangla text is converted to Unicode. Math equations are converted to raw LaTeX a
 ]
 ```
 
-Equations are raw LaTeX (no `$...$` delimiters), suitable for direct use with `katex.render()` or a component that auto-wraps Bangla text in `\text{}`.
+Equations are raw LaTeX (no `$...$` delimiters) by default, suitable for direct use with `katex.render()` or a component that auto-wraps Bangla text in `\text{}`. Pass `forceInline` (`$...$`) or `forceDisplay` (`\[...\]`) to wrap every equation in delimiters so it can be told apart from the surrounding text.
 
 ---
 
@@ -236,8 +236,8 @@ Accepts a `Buffer` directly — useful for web servers receiving file uploads.
 interface ConvertOptions {
   skipBijoy?: boolean;           // Skip Bijoy to Unicode (default: false)
   skipEquations?: boolean;       // Skip equation to LaTeX (default: false)
-  forceDisplay?: boolean;        // Force all equations to display mode
-  forceInline?: boolean;         // Force all equations to inline mode
+  forceDisplay?: boolean;        // Wrap every equation in \[...\] (wins over forceInline)
+  forceInline?: boolean;         // Wrap every equation in $...$
   preserveFormatting?: boolean;  // Emit **bold** / _italic_ markers
   imageToken?: string;           // Placeholder for images (default: "[image]")
   maxRecursionDepth?: number;    // OMML recursion limit (default: 50)
@@ -261,8 +261,8 @@ Options:
   --pretty                    Pretty-print output JSON
   --skip-bijoy                Skip Bijoy to Unicode conversion
   --skip-equations            Skip equation to LaTeX conversion
-  --force-display             Force all equations to display mode
-  --force-inline              Force all equations to inline mode
+  --force-display             Wrap every equation in \[...\]
+  --force-inline              Wrap every equation in $...$
   --preserve-formatting       Emit **bold** / _italic_ markers
   --image-token <token>       Placeholder for images (default: "[image]")
   --stats                     Print conversion stats to stderr

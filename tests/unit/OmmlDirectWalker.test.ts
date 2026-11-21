@@ -298,4 +298,84 @@ describe("OmmlDirectWalker", () => {
       expect(c.warnings[0]!.type).toBe("recursion_limit");
     });
   });
+
+  describe("LaTeX validity", () => {
+    const r = (t: string): XmlNode => ({ "m:t": [{ "#text": t }] });
+
+    it("separates a command from a following letter", () => {
+      expect(ommlToLatex({ "m:r": [r("\u03B1x")] }, ctx())).toBe("\\alpha x");
+      expect(ommlToLatex({ "m:r": [r("\u03B1"), r("x")] }, ctx())).toBe("\\alpha x");
+    });
+
+    it("escapes LaTeX special characters in math text", () => {
+      expect(ommlToLatex({ "m:r": [r("50%")] }, ctx())).toBe("50\\%");
+      expect(ommlToLatex({ "m:r": [r("{1,2}")] }, ctx())).toBe("\\{1,2\\}");
+      expect(ommlToLatex({ "m:r": [r("a&b#")] }, ctx())).toBe("a\\&b\\#");
+    });
+
+    it("converts lim written with limLow inside a function", () => {
+      const func: XmlNode = {
+        "m:fName": {
+          "m:limLow": [{ "m:e": [{ "m:r": [r("lim")] }], "m:lim": { "m:r": [r("n\u2192\u221E")] } }],
+        },
+        "m:e": [{ "m:r": [r("x")] }],
+      };
+      expect(ommlToLatex({ "m:func": [func] }, ctx())).toBe("\\lim_{n\\to\\infty}{x}");
+    });
+
+    it("keeps scripts on function names", () => {
+      const func: XmlNode = {
+        "m:fName": { "m:sSub": [{ "m:e": [{ "m:r": [r("log")] }], "m:sub": { "m:r": [r("2")] } }] },
+        "m:e": [{ "m:r": [r("x")] }],
+      };
+      expect(ommlToLatex({ "m:func": [func] }, ctx())).toBe("\\log_{2}{x}");
+    });
+
+    it("keeps alignment points in equation arrays", () => {
+      const eqArr: XmlNode = { "m:e": [{ "m:r": [r("x+y&=3")] }, { "m:r": [r("x&=1")] }] };
+      expect(ommlToLatex({ "m:eqArr": [eqArr] }, ctx())).toBe(
+        "\\begin{aligned}x+y&=3 \\\\x&=1\\end{aligned}",
+      );
+    });
+
+    it("keeps m:box content", () => {
+      expect(
+        ommlToLatex({ "m:r": [r("a")], "m:box": { "m:e": [{ "m:r": [r("=")] }] } }, ctx()),
+      ).toContain("=");
+    });
+
+    it("groups multi-token parts of a linear fraction", () => {
+      const f: XmlNode = {
+        "m:fPr": { "m:type": { "@_m:val": "lin" } },
+        "m:num": { "m:r": [r("a+b")] },
+        "m:den": { "m:r": [r("c")] },
+      };
+      expect(ommlToLatex({ "m:f": [f] }, ctx())).toBe("(a+b)/c");
+    });
+
+    it("uses the delimiter's own separator character", () => {
+      const d: XmlNode = {
+        "m:dPr": { "m:sepChr": { "@_m:val": ";" } },
+        "m:e": [{ "m:r": [r("a")] }, { "m:r": [r("b")] }],
+      };
+      expect(ommlToLatex({ "m:d": [d] }, ctx())).toBe("\\left( a; b \\right)");
+    });
+
+    it("renders a brace-only matrix as cases", () => {
+      const d: XmlNode = {
+        "m:dPr": { "m:begChr": { "@_m:val": "{" }, "m:endChr": { "@_m:val": "" } },
+        "m:e": [{ "m:m": [{ "m:mr": [{ "m:e": [{ "m:r": [r("1")] }, { "m:r": [r("x>0")] }] }] }] }],
+      };
+      expect(ommlToLatex({ "m:d": [d] }, ctx())).toBe("\\begin{cases}1 & x>0\\end{cases}");
+    });
+
+    it("keeps content next to a matrix inside a delimiter", () => {
+      const inner: XmlNode = {
+        "m:dPr": { "m:begChr": { "@_m:val": "[" }, "m:endChr": { "@_m:val": "]" } },
+        "m:e": [{ "m:m": [{ "m:mr": [{ "m:e": [{ "m:r": [r("a")] }] }] }] }],
+      };
+      const outer: XmlNode = { "m:e": [{ "m:r": [r("2")], "m:d": [inner] }] };
+      expect(ommlToLatex({ "m:d": [outer] }, ctx())).toContain("2");
+    });
+  });
 });

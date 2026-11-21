@@ -26,6 +26,7 @@ const MAX_RECURSION_DEPTH = 50;
 interface WalkerContext {
   warnings: ConversionWarning[];
   paragraphIndex: number;
+  maxDepth?: number;
 }
 
 export function ommlToLatex(
@@ -34,7 +35,7 @@ export function ommlToLatex(
   depth: number = 0,
   ordered?: OrderedEntry[],
 ): string {
-  if (depth > MAX_RECURSION_DEPTH) {
+  if (depth > (ctx.maxDepth ?? MAX_RECURSION_DEPTH)) {
     ctx.warnings.push({
       type: "recursion_limit",
       message: `OMML recursion depth exceeded at depth ${depth}`,
@@ -71,7 +72,20 @@ export function ommlToLatex(
     parts.unshift(mapSymbol(textContent));
   }
 
-  return parts.join("");
+  return joinLatex(parts);
+}
+
+/**
+ * Concatenates LaTeX fragments, adding a space where a control word would
+ * otherwise run into a following letter (\alpha + x must not become \alphax).
+ */
+export function joinLatex(parts: string[]): string {
+  let out = "";
+  for (const part of parts) {
+    if (/\\[A-Za-z]+$/.test(out) && /^[A-Za-z]/.test(part)) out += " ";
+    out += part;
+  }
+  return out;
 }
 
 function processOmmlTag(
@@ -118,6 +132,8 @@ function processOmmlTag(
       return handleBorderBox(node, ctx, depth, ordered);
     case "m:phant":
       return handlePhantom(node, ctx, depth, ordered);
+    case "m:box":
+      return recurseChild(node, "m:e", ctx, depth, ordered);
     case "m:r":
       return handleRun(node);
     case "m:t":
@@ -162,7 +178,7 @@ function handleFrac(
     case "noBar":
       return `\\binom{${numLatex}}{${denLatex}}`;
     case "lin":
-      return `${numLatex}/${denLatex}`;
+      return `${groupForLinear(numLatex)}/${groupForLinear(denLatex)}`;
     case "skw":
       return `{}^{${numLatex}}/{}_{${denLatex}}`;
     default:
@@ -242,9 +258,25 @@ function handleFunc(
 ): string {
   const nameLatex = recurseChild(node, "m:fName", ctx, depth, ordered);
   const argLatex = recurseChild(node, "m:e", ctx, depth, ordered);
-  const knownFunc = OPERATOR_MAP[nameLatex.trim()];
-  const funcCmd = knownFunc ?? nameLatex;
+  const funcCmd = toFunctionCommand(nameLatex.trim());
   return `${funcCmd}{${argLatex}}`;
+}
+
+/**
+ * Maps a leading function name to its command, keeping any scripts:
+ * "sin" → \sin, "log_{2}" → \log_{2}, "lim" → \lim.
+ */
+function toFunctionCommand(name: string): string {
+  const match = /^([A-Za-z]+)(?![A-Za-z])(.*)$/s.exec(name);
+  if (!match) return name;
+  const cmd = OPERATOR_MAP[match[1]!];
+  return cmd ? cmd + match[2]! : name;
+}
+
+function groupForLinear(latex: string): string {
+  return /^(?:[A-Za-z0-9.]+|\\[A-Za-z]+|\{.*\})$/s.test(latex)
+    ? latex
+    : `(${latex})`;
 }
 
 function handleEqArr(
@@ -255,8 +287,9 @@ function handleEqArr(
 ): string {
   const rows = getChildren(node, "m:e");
   if (rows.length === 0) return "";
+  // Word stores alignment points as "&" in the row text; keep them unescaped.
   const rowLatex = rows.map((_, i) =>
-    recurseChild(node, "m:e", ctx, depth, ordered, i),
+    recurseChild(node, "m:e", ctx, depth, ordered, i).replace(/\\&/g, "&"),
   );
   return `\\begin{aligned}${rowLatex.join(" \\\\")}\\end{aligned}`;
 }
@@ -286,7 +319,9 @@ function handleLimLow(
   depth: number,
   ordered?: OrderedEntry[],
 ): string {
-  const base = recurseChild(node, "m:e", ctx, depth, ordered);
+  const base = toFunctionCommand(
+    recurseChild(node, "m:e", ctx, depth, ordered).trim(),
+  );
   const limLatex = recurseChild(node, "m:lim", ctx, depth, ordered);
   if (isOperatorLike(base)) {
     return `${base}_{${limLatex}}`;
@@ -300,7 +335,9 @@ function handleLimUpp(
   depth: number,
   ordered?: OrderedEntry[],
 ): string {
-  const base = recurseChild(node, "m:e", ctx, depth, ordered);
+  const base = toFunctionCommand(
+    recurseChild(node, "m:e", ctx, depth, ordered).trim(),
+  );
   const limLatex = recurseChild(node, "m:lim", ctx, depth, ordered);
   if (isOperatorLike(base)) {
     return `${base}^{${limLatex}}`;
@@ -407,24 +444,28 @@ function handleDelimiter(
     recurseChild(node, "m:e", ctx, depth, ordered, i),
   );
 
+  const leftDel = mapDelimiter(begChr, "left");
+  const rightDel = mapDelimiter(endChr, "right");
+
   const hasMatrix = elements.length === 1 && containsMatrix(elements[0]!);
 
   if (hasMatrix) {
     const eOrdered = ordered ? oGetChildByRef(ordered, "m:e", 0) : undefined;
     const matrixContent = getMatrixContent(elements[0]!, ctx, depth, eOrdered);
-    const env = getMatrixEnv(begChr, endChr);
-    return matrixContent
-      ? matrixContent
-          .replace("\\begin{matrix}", `\\begin{${env}}`)
-          .replace("\\end{matrix}", `\\end{${env}}`)
-      : innerParts.join(", ");
+    if (matrixContent) {
+      const env = getMatrixEnv(begChr, endChr);
+      if (!env) return `\\left${leftDel} ${matrixContent} \\right${rightDel}`;
+      return matrixContent
+        .replace("\\begin{matrix}", `\\begin{${env}}`)
+        .replace("\\end{matrix}", `\\end{${env}}`);
+    }
   }
 
   const sepChr = getOmmlPropVal(node, "m:dPr", "m:sepChr", "m:val") ?? "|";
-  const inner = innerParts.join(sepChr === "|" ? " \\mid " : `, `);
+  const inner = innerParts.join(
+    sepChr === "|" ? " \\mid " : `${mapSymbol(sepChr)} `,
+  );
 
-  const leftDel = mapDelimiter(begChr, "left");
-  const rightDel = mapDelimiter(endChr, "right");
   return `\\left${leftDel} ${inner} \\right${rightDel}`;
 }
 
@@ -459,32 +500,31 @@ function mapSymbol(text: string): string {
   const bb = BLACKBOARD_MAP[text];
   if (bb) return bb;
 
-  let result = "";
+  const pieces: string[] = [];
   for (const char of text) {
-    const op = OPERATOR_MAP[char];
-    if (op) {
-      result += op;
-      continue;
-    }
-    const greek = GREEK_MAP[char];
-    if (greek) {
-      result += greek;
-      continue;
-    }
-    const arrow = ARROW_MAP[char];
-    if (arrow) {
-      result += arrow;
-      continue;
-    }
-    const bbChar = BLACKBOARD_MAP[char];
-    if (bbChar) {
-      result += bbChar;
-      continue;
-    }
-    result += char;
+    pieces.push(
+      OPERATOR_MAP[char] ??
+        GREEK_MAP[char] ??
+        ARROW_MAP[char] ??
+        BLACKBOARD_MAP[char] ??
+        LATEX_SPECIAL[char] ??
+        char,
+    );
   }
-  return result;
+  return joinLatex(pieces);
 }
+
+// Characters with a meaning in LaTeX that must print literally.
+const LATEX_SPECIAL: Record<string, string> = {
+  "%": "\\%",
+  "#": "\\#",
+  "&": "\\&",
+  $: "\\$",
+  _: "\\_",
+  "{": "\\{",
+  "}": "\\}",
+  "\\": "\\backslash",
+};
 
 function mapDelimiter(chr: string, side: "left" | "right"): string {
   if (!chr || chr === "") return ".";
@@ -503,20 +543,22 @@ function mapDelimiter(chr: string, side: "left" | "right"): string {
 }
 
 function isOperatorLike(latex: string): boolean {
-  return /^\\(?:lim|sum|prod|int|iint|iiint|oint|max|min|sup|inf|bigcap|bigcup|bigwedge|bigvee)/.test(
+  return /^\\(?:lim|sum|prod|int|iint|iiint|oint|max|min|sup|inf|bigcap|bigcup|bigwedge|bigvee)(?![A-Za-z])/.test(
     latex,
   );
 }
 
+// Property elements carry no content of their own.
+const PROPERTY_TAGS = new Set(["m:ctrlPr", "m:argPr"]);
+
+/** True when the delimiter element holds a matrix and nothing else. */
 function containsMatrix(node: XmlNode): boolean {
-  if (getChildren(node, "m:m").length > 0) return true;
-  for (const tag of getAllChildTags(node)) {
-    const children = getChildren(node, tag);
-    for (const child of children) {
-      if (containsMatrix(child)) return true;
-    }
-  }
-  return false;
+  const tags = getAllChildTags(node).filter((t) => !PROPERTY_TAGS.has(t));
+  return (
+    tags.length === 1 &&
+    tags[0] === "m:m" &&
+    getChildren(node, "m:m").length === 1
+  );
 }
 
 function getMatrixContent(
@@ -543,13 +585,14 @@ function getMatrixContent(
   return null;
 }
 
-function getMatrixEnv(begChr: string, endChr: string): string {
+function getMatrixEnv(begChr: string, endChr: string): string | null {
   if (begChr === "(" && endChr === ")") return "pmatrix";
   if (begChr === "[" && endChr === "]") return "bmatrix";
   if (begChr === "{" && endChr === "}") return "Bmatrix";
   if (begChr === "|" && endChr === "|") return "vmatrix";
   if (begChr === "\u2016" && endChr === "\u2016") return "Vmatrix";
-  return "pmatrix";
+  if (begChr === "{" && endChr === "") return "cases";
+  return null;
 }
 
 const SYMBOL_FONT_MAP: Record<string, string> = {

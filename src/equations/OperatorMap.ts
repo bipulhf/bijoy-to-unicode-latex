@@ -59,7 +59,6 @@ export const OPERATOR_MAP: Record<string, string> = {
   "\u2203": "\\exists",
   "\u2204": "\\nexists",
   "\u22A4": "\\top",
-  "\u22A5bot": "\\bot",
 
   "\u2202": "\\partial",
   "\u2207": "\\nabla",

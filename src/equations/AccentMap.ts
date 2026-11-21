@@ -11,7 +11,9 @@ export const ACCENT_MAP: Record<string, string> = {
   "\u20D7": "\\vec",         // combining right arrow above
   "\u20D6": "\\overleftarrow",    // combining left arrow above
   "\u20E1": "\\overleftrightarrow", // combining left-right arrow above
-  "\u20DE": "\\square",      // combining enclosing square
+  "\u20DE": "\\boxed",       // combining enclosing square
+  "\u0305": "\\overline",    // combining overline (Word's "Bar" accent)
+  "\u20D1": "\\overrightharpoon", // combining right harpoon above
   "\u030A": "\\mathring",    // combining ring above
 
   // Non-combining versions (sometimes used in OMML)
