@@ -834,7 +834,7 @@
       });
 
       // --- Dropzone ---
-      dropzone.addEventListener("click", () => fileInput.click());
+      dropzone.addEventListener("click", () => { fileInput.value = ""; fileInput.click(); });
       fileInput.addEventListener("change", () => {
         if (fileInput.files.length) handleFile(fileInput.files[0]);
       });
@@ -878,7 +878,7 @@
 
       // --- File handling ---
       async function handleFile(file) {
-        if (!file.name.endsWith(".docx")) {
+        if (!file.name.toLowerCase().endsWith(".docx")) {
           showError("Please upload a .docx file");
           return;
         }
@@ -1119,7 +1119,7 @@
       // --- Deleting ---
       function deleteQuestion(qi) {
         const card = resultsEl.children[qi];
-        if (!card) return;
+        if (!card || card.classList.contains("removing")) return;
         card.classList.add("removing");
         card.addEventListener("animationend", () => {
           questions.splice(qi, 1);
