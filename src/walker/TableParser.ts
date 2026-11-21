@@ -5,8 +5,14 @@ import type {
   ConversionWarning,
   ConvertOptions,
 } from "../types.js";
-import { getChildren } from "../reader/XmlParser.js";
+import {
+  getChildren,
+  oGetChildByRef,
+  type OrderedEntry,
+} from "../reader/XmlParser.js";
 import { parseParagraph } from "./ParagraphParser.js";
+import type { StyleResolver } from "../reader/StyleResolver.js";
+import type { NumberingResolver } from "../reader/NumberingResolver.js";
 
 interface TableParserContext {
   warnings: ConversionWarning[];
@@ -18,6 +24,10 @@ interface TableParserContext {
     imagesSkipped: number;
     tablesProcessed: number;
   };
+  /** Document-order view of the w:tbl element. */
+  orderedEntries?: OrderedEntry[];
+  styles?: StyleResolver;
+  numbering?: NumberingResolver;
 }
 
 export type TableClassification = "option" | "layout" | "data";
@@ -31,12 +41,14 @@ export function parseTable(
   const rows: ParsedParagraph[][] = [];
   const trNodes = getChildren(tblNode, "w:tr");
 
-  for (const tr of trNodes) {
+  for (const [ri, tr] of trNodes.entries()) {
     const row: ParsedParagraph[] = [];
     const tcNodes = getChildren(tr, "w:tc");
+    const trOrdered = childOrdered(ctx.orderedEntries, "w:tr", ri);
 
-    for (const tc of tcNodes) {
+    for (const [ci, tc] of tcNodes.entries()) {
       const paragraphs = getChildren(tc, "w:p");
+      const tcOrdered = childOrdered(trOrdered, "w:tc", ci);
       const cellContent: ParsedParagraph = {
         nodes: [],
         styleId: null,
@@ -44,12 +56,15 @@ export function parseTable(
         ilvl: null,
       };
 
-      for (const p of paragraphs) {
+      for (const [pi, p] of paragraphs.entries()) {
         const parsed = parseParagraph(p, {
           warnings: ctx.warnings,
           paragraphIndex: ctx.paragraphIndex,
           options: ctx.options,
           stats: ctx.stats,
+          orderedEntries: childOrdered(tcOrdered, "w:p", pi),
+          styles: ctx.styles,
+          numbering: ctx.numbering,
         });
         cellContent.nodes.push(...parsed.nodes);
         if (!cellContent.styleId && parsed.styleId) {
@@ -66,6 +81,14 @@ export function parseTable(
   }
 
   return { rows };
+}
+
+function childOrdered(
+  parent: OrderedEntry[] | undefined,
+  tag: string,
+  index: number,
+): OrderedEntry[] | undefined {
+  return parent ? oGetChildByRef(parent, tag, index) : undefined;
 }
 
 export function classifyTable(table: ParsedTable): TableClassification {

@@ -16,10 +16,20 @@ import {
 } from "../reader/XmlParser.js";
 import { parseParagraph } from "./ParagraphParser.js";
 import { parseTable } from "./TableParser.js";
+import type { StyleResolver } from "../reader/StyleResolver.js";
+import type { NumberingResolver } from "../reader/NumberingResolver.js";
+
+export interface DocumentResolvers {
+  styles?: StyleResolver;
+  numbering?: NumberingResolver;
+}
 
 interface WalkerContext {
   warnings: ConversionWarning[];
   options: ConvertOptions;
+  resolvers: DocumentResolvers;
+  /** Running paragraph counter, shared across nested content controls. */
+  paragraphIndex: number;
   stats: {
     bijoyRunsConverted: number;
     totalEquations: number;
@@ -32,10 +42,13 @@ export function walkDocument(
   documentXml: XmlNode,
   options: ConvertOptions,
   documentXmlOrdered?: OrderedEntry[],
+  resolvers: DocumentResolvers = {},
 ): { elements: BodyElement[]; stats: Omit<ConversionStats, "totalQuestions"> } {
   const ctx: WalkerContext = {
     warnings: [],
     options,
+    resolvers,
+    paragraphIndex: 0,
     stats: {
       bijoyRunsConverted: 0,
       totalEquations: 0,
@@ -81,7 +94,6 @@ function walkBody(
   }
 
   const elements: BodyElement[] = [];
-  let paragraphIndex = 0;
 
   const childSequence = orderedBody
     ? oGetChildSequence(orderedBody)
@@ -97,27 +109,26 @@ function walkBody(
 
     switch (tag) {
       case "w:p": {
-        const childOrder = orderedChild
-          ? oGetChildSequence(orderedChild)
-          : undefined;
         const para = parseParagraph(child, {
           warnings: ctx.warnings,
-          paragraphIndex,
+          paragraphIndex: ctx.paragraphIndex,
           options: ctx.options,
           stats: ctx.stats,
-          childOrder,
           orderedEntries: orderedChild,
+          ...ctx.resolvers,
         });
         elements.push({ type: "paragraph", paragraph: para });
-        paragraphIndex++;
+        ctx.paragraphIndex++;
         break;
       }
       case "w:tbl": {
         const table = parseTable(child, {
           warnings: ctx.warnings,
-          paragraphIndex,
+          paragraphIndex: ctx.paragraphIndex,
           options: ctx.options,
           stats: ctx.stats,
+          orderedEntries: orderedChild,
+          ...ctx.resolvers,
         });
         elements.push({ type: "table", table });
         break;

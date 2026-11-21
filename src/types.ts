@@ -37,6 +37,8 @@ export interface RunNode {
   type: "text";
   text: string;
   isBijoy: boolean;
+  /** Source text before Bijoy conversion (set only when isBijoy). */
+  rawText?: string;
   fontName: string | null;
   bold: boolean;
   italic: boolean;
@@ -60,6 +62,8 @@ export interface ParsedParagraph {
   styleId: string | null;
   numId: number | null;
   ilvl: number | null;
+  /** w:numFmt of the list level (decimal, lowerLetter, bullet, ...), if known. */
+  numFmt?: string | null;
 }
 
 export interface ParsedTable {

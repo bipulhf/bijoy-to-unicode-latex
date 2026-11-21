@@ -11,6 +11,8 @@ import { InvalidDocxError } from "./types.js";
 import { readDocxFromBuffer } from "./reader/DocxReader.js";
 import { walkDocument } from "./walker/DocumentWalker.js";
 import { assembleQuestions } from "./assembler/QuestionAssembler.js";
+import { StyleResolver } from "./reader/StyleResolver.js";
+import { NumberingResolver } from "./reader/NumberingResolver.js";
 
 export async function convertDocx(
   filePath: string,
@@ -34,6 +36,10 @@ export async function convertBuffer(
     docx.documentXml,
     options,
     docx.documentXmlOrdered,
+    {
+      styles: new StyleResolver(docx.stylesXml),
+      numbering: new NumberingResolver(docx.numberingXml),
+    },
   );
   const questions = assembleQuestions(elements, options, stats.warnings);
 
