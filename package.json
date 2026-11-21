@@ -41,7 +41,7 @@
   "dependencies": {
     "commander": "^12.1.0",
     "express": "^5.2.1",
-    "fast-xml-parser": "^4.4.1",
+    "fast-xml-parser": "^5.12.1",
     "jszip": "^3.10.1",
     "multer": "^2.1.1"
   },
