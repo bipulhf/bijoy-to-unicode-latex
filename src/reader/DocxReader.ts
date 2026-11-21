@@ -22,10 +22,34 @@ async function loadZip(input: Buffer): Promise<JSZip> {
   }
 }
 
+// Upper bound on one decompressed XML part, so a small zip bomb cannot
+// exhaust memory. Real document.xml files are a few MB at most.
+const MAX_ENTRY_BYTES = 200 * 1024 * 1024;
+
 async function readEntry(zip: JSZip, path: string): Promise<string | null> {
   const entry = zip.file(path);
   if (!entry) return null;
-  return entry.async("string");
+
+  const chunks: Buffer[] = [];
+  let total = 0;
+  // JSZip's stream is an old-style readable without async iteration.
+  await new Promise<void>((resolve, reject) => {
+    const stream = entry.nodeStream("nodebuffer");
+    stream.on("data", (chunk: Buffer) => {
+      total += chunk.length;
+      if (total > MAX_ENTRY_BYTES) {
+        stream.pause();
+        reject(new InvalidDocxError(`${path} is too large to process`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    stream.on("error", () =>
+      reject(new InvalidDocxError(`Cannot read ${path} from the archive`)),
+    );
+    stream.on("end", () => resolve());
+  });
+  return new TextDecoder("utf-8").decode(Buffer.concat(chunks));
 }
 
 export async function readDocxFromBuffer(buffer: Buffer): Promise<DocxContent> {

@@ -3,7 +3,6 @@
 import { Command } from "commander";
 import { readFile, writeFile } from "node:fs/promises";
 import { convertBuffer } from "./index.js";
-import { InvalidDocxError } from "./types.js";
 import type { ConvertOptions } from "./types.js";
 
 const program = new Command();
@@ -30,7 +29,16 @@ program
   .option("--stats", "Print conversion stats to stderr")
   .action(async (file: string, opts: Record<string, string | boolean | undefined>) => {
     try {
-      const buffer = await readFile(file);
+      if (opts["forceDisplay"] && opts["forceInline"]) {
+        throw new Error("--force-display and --force-inline cannot be combined");
+      }
+
+      let buffer: Buffer;
+      try {
+        buffer = await readFile(file);
+      } catch {
+        throw new Error(`Cannot read file: ${file}`);
+      }
 
       const options: ConvertOptions = {
         skipBijoy: opts["skipBijoy"] === true,
@@ -77,12 +85,10 @@ program
         }
       }
     } catch (err) {
-      if (err instanceof InvalidDocxError) {
-        process.stderr.write(`Error: ${err.message}\n`);
-        process.exit(1);
-      }
-      throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Error: ${message}\n`);
+      process.exitCode = 1;
     }
   });
 
-program.parse();
+await program.parseAsync();
