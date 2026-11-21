@@ -1,6 +1,6 @@
 {
   "name": "bijoy-to-unicode",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Convert Bijoy Bangla to Unicode: plain text, formatted Word HTML for rich text editors, Word equations to LaTeX and .docx question papers",
   "type": "module",
   "main": "./dist/index.js",
