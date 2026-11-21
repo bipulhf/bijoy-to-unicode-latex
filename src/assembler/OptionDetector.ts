@@ -1,49 +1,54 @@
 import type { ParsedParagraph, DocNode } from "../types.js";
-import { getFirstTextContent } from "./QuestionDetector.js";
+import {
+  toMarkedText,
+  sliceMarked,
+  trimMarked,
+  type MarkedText,
+} from "./MarkedText.js";
 
-const OPTION_MARKER = /^[\s]*[\(\[]?(?:[ABCDabcdকখগঘ])[\)\].)।\s]+/u;
+const MARKER_FAMILIES = ["ABCD", "abcd", "কখগঘ"];
 
-const STRIP_PATTERN = /^[\s]*[\(\[]?(?:[ABCDabcdকখগঘ])[\)\].)।\s]+/u;
+// A marker needs closing punctuation: "(A)", "[A]", "A)", "A.", "A।".
+// "A " alone is ordinary text ("A ball is thrown").
+const OPTION_MARKER = /^\s*[\(\[]?[ABCDabcdকখগঘ][\)\].।]\s*/u;
 
-const EMBEDDED_OPTIONS_PATTERN = /[\(\[]?(?:[ABCDকখগঘ])[\)\].)।]\s*/gu;
+// Same marker anywhere in a line, but only at the start of a word (or right
+// after an equation), so the "গ।" ending "লাগ।", the "A." in "U.S.A." and the
+// "c." in "c.m." are not markers.
+const EMBEDDED_MARKER =
+  /(?<![^\s\u2063])[\(\[]?([ABCDabcdকখগঘ])[\)\].।](?![A-Za-z.])\s*/gu;
 
-const SINGLE_MARKER = /^[\s]*[\(\[]?(?:[ABCDabcdকখগঘ])[\)\].)।]\s*$/u;
+const SINGLE_MARKER = /^\s*[\(\[]?[ABCDabcdকখগঘ][\)\].।]\s*$/u;
+
+const LETTER_NUM_FORMATS = new Set(["lowerLetter", "upperLetter"]);
 
 export function isOptionParagraph(p: ParsedParagraph): boolean {
-  const text = getFirstTextContent(p).trim();
-  return OPTION_MARKER.test(text);
+  if (p.numFmt && LETTER_NUM_FORMATS.has(p.numFmt)) return true;
+  const { masked } = toMarkedText(p.nodes, "");
+  return OPTION_MARKER.test(masked);
 }
 
 export function hasMultipleOptionMarkers(p: ParsedParagraph): boolean {
   let count = 0;
   for (const node of p.nodes) {
-    if (node.type === "text" && SINGLE_MARKER.test(node.text.trim())) {
+    if (node.type === "text" && SINGLE_MARKER.test(node.text)) {
       count++;
     }
   }
   if (count >= 2) return true;
 
-  const fullText = nodesAsText(p.nodes);
-  const markers = [...fullText.matchAll(EMBEDDED_OPTIONS_PATTERN)];
-  return markers.length >= 2;
+  return findMarkerChain(toMarkedText(p.nodes, "").masked).length >= 2;
 }
 
 export function stripOptionMarker(text: string): string {
-  return text.replace(STRIP_PATTERN, "").trim();
+  return text.replace(OPTION_MARKER, "").trim();
 }
 
 export function getOptionText(p: ParsedParagraph, imageToken: string): string {
-  let text = "";
-  for (const node of p.nodes) {
-    if (node.type === "text") {
-      text += node.text;
-    } else if (node.type === "equation") {
-      text += node.ommlXml;
-    } else if (node.type === "image") {
-      text += imageToken;
-    }
-  }
-  return stripOptionMarker(text);
+  const marked = toMarkedText(p.nodes, imageToken);
+  const match = OPTION_MARKER.exec(marked.masked);
+  const rest = match ? sliceMarked(marked, match[0].length) : marked;
+  return rest.text.trim();
 }
 
 export function parseMultiOptionNodes(
@@ -53,14 +58,21 @@ export function parseMultiOptionNodes(
   const markerIndices: number[] = [];
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]!;
-    if (node.type === "text" && SINGLE_MARKER.test(node.text.trim())) {
+    if (node.type === "text" && SINGLE_MARKER.test(node.text)) {
       markerIndices.push(i);
     }
   }
 
+  const marked = toMarkedText(nodes, imageToken);
   if (markerIndices.length < 2) {
-    const fullText = nodeToString(nodes, imageToken);
-    return splitEmbeddedText(fullText);
+    return splitEmbeddedText(marked);
+  }
+
+  // Markers sit in their own runs, but one may also be typed inside a value
+  // ("14, 12, 4  গ) 0, 4, -4"); reading the whole line catches both.
+  const chain = findMarkerChain(marked.masked);
+  if (chain.length >= markerIndices.length) {
+    return splitByChain(marked, chain);
   }
 
   // Strategy 1: content immediately after each marker until next marker
@@ -113,21 +125,54 @@ export function parseMultiOptionNodes(
   return result;
 }
 
-function splitEmbeddedText(fullText: string): string[] {
-  const markers = [...fullText.matchAll(EMBEDDED_OPTIONS_PATTERN)];
-  if (markers.length < 2) {
-    return [stripOptionMarker(fullText)];
+/**
+ * Longest run of markers whose letters follow each other (A, B, C... or
+ * ক, খ, গ...). Candidates that break the sequence are treated as text.
+ */
+function findMarkerChain(masked: string): RegExpMatchArray[] {
+  const candidates = [...masked.matchAll(EMBEDDED_MARKER)];
+  let best: RegExpMatchArray[] = [];
+  for (let s = 0; s < candidates.length; s++) {
+    const first = candidates[s]!;
+    const family = MARKER_FAMILIES.find((f) => f.includes(first[1]!));
+    if (!family) continue;
+    let pos = family.indexOf(first[1]!);
+    const chain = [first];
+    for (let k = s + 1; k < candidates.length; k++) {
+      const cand = candidates[k]!;
+      if (family[pos + 1] === cand[1]) {
+        chain.push(cand);
+        pos++;
+      }
+    }
+    // On a tie keep the later chain: "Is (A) or (B) true? (A) x (B) y ..."
+    if (chain.length >= best.length) best = chain;
   }
+  return best;
+}
 
+function splitByChain(
+  marked: MarkedText,
+  chain: RegExpMatchArray[],
+): string[] {
   const options: string[] = [];
-  for (let i = 0; i < markers.length; i++) {
-    const match = markers[i]!;
+  for (let i = 0; i < chain.length; i++) {
+    const match = chain[i]!;
     const start = match.index! + match[0].length;
-    const end =
-      i + 1 < markers.length ? markers[i + 1]!.index! : fullText.length;
-    options.push(fullText.slice(start, end).trim());
+    const end = i + 1 < chain.length ? chain[i + 1]!.index! : marked.text.length;
+    options.push(trimMarked(sliceMarked(marked, start, end)).text);
   }
   return options;
+}
+
+function splitEmbeddedText(marked: MarkedText): string[] {
+  const chain = findMarkerChain(marked.masked);
+  if (chain.length < 2) {
+    const match = OPTION_MARKER.exec(marked.masked);
+    const rest = match ? sliceMarked(marked, match[0].length) : marked;
+    return [rest.text.trim()];
+  }
+  return splitByChain(marked, chain);
 }
 
 function nodeToString(nodes: DocNode[], imageToken: string): string {
@@ -140,30 +185,30 @@ function singleNodeToString(n: DocNode, imageToken: string): string {
   return imageToken;
 }
 
-function nodesAsText(nodes: DocNode[]): string {
-  return nodes.map((n) => (n.type === "text" ? n.text : "")).join("");
+/** Options embedded in a question line: needs at least A, B, C in order. */
+function embeddedChain(marked: MarkedText): RegExpMatchArray[] | null {
+  const chain = findMarkerChain(marked.masked);
+  if (chain.length < 3) return null;
+  const firstLetter = chain[0]![1]!;
+  const startsAtFirst = MARKER_FAMILIES.some((f) => f[0] === firstLetter);
+  return startsAtFirst ? chain : null;
 }
 
-export function tryExtractEmbeddedOptions(text: string): string[] | null {
-  const markers = [...text.matchAll(EMBEDDED_OPTIONS_PATTERN)];
-  if (markers.length < 3) return null;
-
-  const options: string[] = [];
-  for (let i = 0; i < markers.length; i++) {
-    const match = markers[i]!;
-    const start = match.index! + match[0].length;
-    const end = i + 1 < markers.length ? markers[i + 1]!.index! : text.length;
-    const optionText = text.slice(start, end).trim();
-    options.push(optionText);
-  }
-
-  const nonEmpty = options.filter((o) => o.length > 0);
+export function tryExtractEmbeddedOptions(
+  text: string | MarkedText,
+): string[] | null {
+  const marked = typeof text === "string" ? { text, masked: text } : text;
+  const chain = embeddedChain(marked);
+  if (!chain) return null;
+  const nonEmpty = splitByChain(marked, chain).filter((o) => o.length > 0);
   return nonEmpty.length >= 3 ? nonEmpty : null;
 }
 
-export function getTextBeforeEmbeddedOptions(text: string): string | null {
-  const markers = [...text.matchAll(EMBEDDED_OPTIONS_PATTERN)];
-  if (markers.length < 3) return null;
-  const firstIdx = markers[0]!.index!;
-  return text.slice(0, firstIdx).trim();
+export function getTextBeforeEmbeddedOptions(
+  text: string | MarkedText,
+): string | null {
+  const marked = typeof text === "string" ? { text, masked: text } : text;
+  const chain = embeddedChain(marked);
+  if (!chain) return null;
+  return marked.text.slice(0, chain[0]!.index!).trim();
 }

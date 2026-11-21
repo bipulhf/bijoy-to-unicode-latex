@@ -11,10 +11,17 @@ import {
   isBlankParagraph,
   isEquationOnlyParagraph,
   isContentParagraph,
+  isImageOnlyParagraph,
   getParagraphText,
-  stripQuestionNumber,
   getFullTextContent,
+  QUESTION_NUMBER,
 } from "./QuestionDetector.js";
+import {
+  toMarkedText,
+  sliceMarked,
+  trimMarked,
+  type MarkedText,
+} from "./MarkedText.js";
 import {
   isOptionParagraph,
   hasMultipleOptionMarkers,
@@ -100,6 +107,11 @@ function handleIdle(
     return;
   }
 
+  // A stray image before any question has nothing to attach to.
+  if (isImageOnlyParagraph(p)) {
+    return;
+  }
+
   if (isContentParagraph(p)) {
     startUnnumberedQuestion(p, st, imageToken);
   }
@@ -123,20 +135,21 @@ function handleInQuestion(
   }
 
   if (isSubPartParagraph(p)) {
-    st.currentQuestion += "\n" + getParagraphText(p, imageToken);
+    st.currentQuestion += "\n" + getParagraphText(p, imageToken).trim();
     return;
   }
 
   if (isEquationOnlyParagraph(p)) {
-    st.currentQuestion += "\n" + getParagraphText(p, imageToken);
+    st.currentQuestion += "\n" + getParagraphText(p, imageToken).trim();
     return;
   }
 
   const text = getParagraphText(p, imageToken);
   if (text.trim().length > 0) {
-    const embedded = tryExtractEmbeddedOptions(getFullTextContent(p));
+    const marked = toMarkedText(p.nodes, imageToken);
+    const embedded = tryExtractEmbeddedOptions(marked);
     if (embedded) {
-      const questionPart = getTextBeforeEmbeddedOptions(getFullTextContent(p));
+      const questionPart = getTextBeforeEmbeddedOptions(marked);
       if (questionPart) {
         st.currentQuestion += "\n" + questionPart;
       }
@@ -145,7 +158,7 @@ function handleInQuestion(
       return;
     }
 
-    st.currentQuestion += "\n" + text;
+    st.currentQuestion += "\n" + text.trim();
   }
 }
 
@@ -165,16 +178,20 @@ function handleInOptions(
     return;
   }
 
-  if (isContentParagraph(p) && !isOptionParagraph(p)) {
-    finalize(st);
-    startUnnumberedQuestion(p, st, imageToken);
+  // A line holding only an equation or image continues the last option.
+  if (
+    st.currentOptions.length > 0 &&
+    (isEquationOnlyParagraph(p) || isImageOnlyParagraph(p))
+  ) {
+    const lastIdx = st.currentOptions.length - 1;
+    st.currentOptions[lastIdx] =
+      st.currentOptions[lastIdx]! + " " + getParagraphText(p, imageToken);
     return;
   }
 
-  const text = getParagraphText(p, imageToken);
-  if (text.trim().length > 0 && st.currentOptions.length > 0) {
-    const lastIdx = st.currentOptions.length - 1;
-    st.currentOptions[lastIdx] = st.currentOptions[lastIdx]! + " " + text;
+  if (isContentParagraph(p)) {
+    finalize(st);
+    startUnnumberedQuestion(p, st, imageToken);
   }
 }
 
@@ -205,8 +222,8 @@ function handleTable(
     case "option": {
       const optionCells = flattenOptionTable(elem.table);
       const opts = optionCells.map((cell) => getOptionText(cell, imageToken));
-      st.currentOptions = opts;
       if (st.state === "QUESTION" || st.state === "OPTIONS") {
+        st.currentOptions.push(...opts);
         finalize(st);
       }
       break;
@@ -237,20 +254,27 @@ function startQuestion(
   st: AssemblerState,
   imageToken: string,
 ): void {
-  const rawText = getParagraphText(p, imageToken);
-  const text = stripQuestionNumber(rawText);
+  let marked = toMarkedText(p.nodes, imageToken);
+  // Word list numbering is not part of the text, so only strip a typed number.
+  if (p.numId === null) {
+    const match = QUESTION_NUMBER.exec(marked.masked);
+    if (match) marked = sliceMarked(marked, match[0].length);
+  }
+  setQuestionText(trimMarked(marked), st);
+}
 
-  const embedded = tryExtractEmbeddedOptions(text);
+function setQuestionText(marked: MarkedText, st: AssemblerState): void {
+  const embedded = tryExtractEmbeddedOptions(marked);
   if (embedded) {
-    const questionPart = getTextBeforeEmbeddedOptions(text);
-    st.currentQuestion = questionPart ?? text;
+    const questionPart = getTextBeforeEmbeddedOptions(marked);
+    st.currentQuestion = questionPart ?? marked.text;
     st.currentOptions = embedded;
     st.state = "QUESTION";
     finalize(st);
     return;
   }
 
-  st.currentQuestion = text;
+  st.currentQuestion = marked.text;
   st.currentOptions = [];
   st.state = "QUESTION";
 }
@@ -260,21 +284,7 @@ function startUnnumberedQuestion(
   st: AssemblerState,
   imageToken: string,
 ): void {
-  const text = getParagraphText(p, imageToken);
-
-  const embedded = tryExtractEmbeddedOptions(text);
-  if (embedded) {
-    const questionPart = getTextBeforeEmbeddedOptions(text);
-    st.currentQuestion = questionPart ?? text;
-    st.currentOptions = embedded;
-    st.state = "QUESTION";
-    finalize(st);
-    return;
-  }
-
-  st.currentQuestion = text;
-  st.currentOptions = [];
-  st.state = "QUESTION";
+  setQuestionText(toMarkedText(p.nodes, imageToken), st);
 }
 
 function finalize(st: AssemblerState): void {
