@@ -1,6 +1,6 @@
-import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import { InvalidDocxError } from "../types.js";
+import { ZipArchive } from "./zip.js";
 import { parseXml, parseXmlOrdered } from "./XmlParser.js";
 import type { XmlNode } from "../types.js";
 import type { OrderedEntry } from "./XmlParser.js";
@@ -14,58 +14,24 @@ export interface DocxContent {
   endnotesXml: XmlNode | null;
 }
 
-async function loadZip(input: Buffer): Promise<JSZip> {
-  try {
-    return await JSZip.loadAsync(input);
-  } catch {
-    throw new InvalidDocxError("File is not a valid ZIP archive");
-  }
-}
-
 // Upper bound on one decompressed XML part, so a small zip bomb cannot
 // exhaust memory. Real document.xml files are a few MB at most.
 const MAX_ENTRY_BYTES = 200 * 1024 * 1024;
 
-async function readEntry(zip: JSZip, path: string): Promise<string | null> {
-  const entry = zip.file(path);
-  if (!entry) return null;
-
-  const chunks: Buffer[] = [];
-  let total = 0;
-  // JSZip's stream is an old-style readable without async iteration.
-  await new Promise<void>((resolve, reject) => {
-    const stream = entry.nodeStream("nodebuffer");
-    stream.on("data", (chunk: Buffer) => {
-      total += chunk.length;
-      if (total > MAX_ENTRY_BYTES) {
-        stream.pause();
-        reject(new InvalidDocxError(`${path} is too large to process`));
-        return;
-      }
-      chunks.push(chunk);
-    });
-    stream.on("error", () =>
-      reject(new InvalidDocxError(`Cannot read ${path} from the archive`)),
-    );
-    stream.on("end", () => resolve());
-  });
-  return new TextDecoder("utf-8").decode(Buffer.concat(chunks));
-}
-
 export async function readDocxFromBuffer(buffer: Buffer): Promise<DocxContent> {
-  const zip = await loadZip(buffer);
+  const zip = ZipArchive.open(buffer);
 
-  const docXml = await readEntry(zip, "word/document.xml");
+  const docXml = await zip.readText("word/document.xml", MAX_ENTRY_BYTES);
   if (!docXml) {
     throw new InvalidDocxError("Missing word/document.xml — not a valid .docx file");
   }
 
   const [stylesStr, numberingStr, footnotesStr, endnotesStr] =
     await Promise.all([
-      readEntry(zip, "word/styles.xml"),
-      readEntry(zip, "word/numbering.xml"),
-      readEntry(zip, "word/footnotes.xml"),
-      readEntry(zip, "word/endnotes.xml"),
+      zip.readText("word/styles.xml", MAX_ENTRY_BYTES),
+      zip.readText("word/numbering.xml", MAX_ENTRY_BYTES),
+      zip.readText("word/footnotes.xml", MAX_ENTRY_BYTES),
+      zip.readText("word/endnotes.xml", MAX_ENTRY_BYTES),
     ]);
 
   return {
