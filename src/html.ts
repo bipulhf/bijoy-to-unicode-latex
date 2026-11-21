@@ -1,5 +1,5 @@
 /**
- * bijoy-to-latex/html: Word clipboard HTML with Bijoy text to clean,
+ * bijoy-to-unicode/html: Word clipboard HTML with Bijoy text to clean,
  * formatted Unicode HTML for rich text editors. Uses the global DOMParser
  * in browsers; in Node pass one (happy-dom, linkedom, jsdom) as `parser`.
  */

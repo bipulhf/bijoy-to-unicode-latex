@@ -1,4 +1,4 @@
-# bijoy-to-latex
+# bijoy-to-unicode
 
 Convert Bijoy (SutonnyMJ and other ANSI) Bangla to Unicode — as plain text, as formatted HTML copied from Word, or as whole `.docx` question papers with the equations turned into LaTeX.
 
@@ -7,22 +7,22 @@ Convert Bijoy (SutonnyMJ and other ANSI) Bangla to Unicode — as plain text, as
 - **Pick what you need:** four entry points; the text and HTML converters have no dependencies and run in browsers.
 
 ```bash
-npm install bijoy-to-latex
+npm install bijoy-to-unicode
 ```
 
 | Import | Converts | Runs in |
 | --- | --- | --- |
-| `bijoy-to-latex/unicode` | Bijoy text to Unicode | Node, browsers |
-| `bijoy-to-latex/html` | Word HTML (clipboard) to formatted Unicode HTML | Browsers; Node with a DOM parser |
-| `bijoy-to-latex/latex` | Word equations (OMML) to LaTeX | Node, browsers |
-| `bijoy-to-latex` | `.docx` question papers to questions with LaTeX | Node |
+| `bijoy-to-unicode` | Bijoy text to Unicode | Node, browsers |
+| `bijoy-to-unicode/html` | Word HTML (clipboard) to formatted Unicode HTML | Browsers; Node with a DOM parser |
+| `bijoy-to-unicode/latex` | Word equations (OMML) to LaTeX | Node, browsers |
+| `bijoy-to-unicode/docx` | `.docx` question papers to questions with LaTeX | Node |
 
 The package is ESM only and needs Node 20 or later.
 
 ## Plain text
 
 ```ts
-import { convertBijoyToUnicode } from "bijoy-to-latex/unicode";
+import { convertBijoyToUnicode } from "bijoy-to-unicode";
 
 convertBijoyToUnicode("Avwg evsjvq Mvb MvB"); // "আমি বাংলায় গান গাই"
 convertBijoyToUnicode("wbY©q Ki");            // "নির্ণয় কর"
@@ -31,7 +31,7 @@ convertBijoyToUnicode("wbY©q Ki");            // "নির্ণয় কর"
 Text that already contains Unicode Bangla should not be passed in; check first:
 
 ```ts
-import { hasUnicodeBangla, hasBijoyMarkers, isBijoyFont } from "bijoy-to-latex/unicode";
+import { hasUnicodeBangla, hasBijoyMarkers, isBijoyFont } from "bijoy-to-unicode";
 
 hasUnicodeBangla("বাংলা");  // true: already Unicode, leave it
 hasBijoyMarkers("‡hvM");    // true: contains characters only Bijoy text uses
@@ -45,7 +45,7 @@ isBijoyFont("SutonnyMJ");   // true; also other *MJ fonts. Nikosh, Kalpurush: fa
 Word and HTML often split one word over several runs or spans, for example when part of it is coloured. Converting each piece alone breaks the word (a reph typed in the next piece, a vowel sign before the consonant in the previous one). `convertBijoyRuns` converts the pieces of one line together and returns one result per piece, so each keeps its own formatting:
 
 ```ts
-import { convertBijoyRuns } from "bijoy-to-latex/unicode";
+import { convertBijoyRuns } from "bijoy-to-unicode";
 
 convertBijoyRuns(["eM", "©"]); // ["বর্গ", ""]: the reph moved into the first piece
 convertBijoyRuns(["hw", "`"]); // ["য", "দি"]: the vowel sign moved to the second piece
@@ -58,8 +58,8 @@ convertBijoyRuns(["hw", "`"]); // ["য", "দি"]: the vowel sign moved to the
 A paste handler for any `contenteditable` editor:
 
 ```ts
-import { convertBijoyHtml } from "bijoy-to-latex/html";
-import { ommlToLatex } from "bijoy-to-latex/latex";
+import { convertBijoyHtml } from "bijoy-to-unicode/html";
+import { ommlToLatex } from "bijoy-to-unicode/latex";
 
 editor.addEventListener("paste", (event) => {
   const data = event.clipboardData;
@@ -97,7 +97,7 @@ In Node, pass a parser, for example from `happy-dom`:
 
 ```ts
 import { Window } from "happy-dom";
-import { convertBijoyHtml } from "bijoy-to-latex/html";
+import { convertBijoyHtml } from "bijoy-to-unicode/html";
 
 const parser = new new Window().DOMParser();
 const { html } = convertBijoyHtml(wordHtml, { parser });
@@ -108,7 +108,7 @@ const { html } = convertBijoyHtml(wordHtml, { parser });
 ## Equations
 
 ```ts
-import { ommlToLatex } from "bijoy-to-latex/latex";
+import { ommlToLatex } from "bijoy-to-unicode/latex";
 
 ommlToLatex(
   "<m:oMath><m:f><m:num><m:r><m:t>a</m:t></m:r></m:num>" +
@@ -123,7 +123,7 @@ Covered: fractions (bar, linear, skewed, `\binom`), roots, scripts and pre-scrip
 ## Word question papers
 
 ```ts
-import { convertDocx, convertBuffer } from "bijoy-to-latex";
+import { convertDocx, convertBuffer } from "bijoy-to-unicode/docx";
 
 const { questions, stats } = await convertDocx("questions.docx");
 // or, for an upload: await convertBuffer(buffer)
@@ -188,7 +188,8 @@ Source layout:
 
 ```
 src/
-├── unicode.ts html.ts latex.ts index.ts   package entry points
+├── unicode.ts html.ts latex.ts   package entry points (root, /html, /latex)
+├── index.ts      package entry point /docx
 ├── bijoy/        Bijoy to Unicode, run repair, Word HTML cleaning
 ├── equations/    OMML to LaTeX
 ├── reader/       .docx unzip and XML parsing

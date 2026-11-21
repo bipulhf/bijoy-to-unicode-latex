@@ -1,5 +1,5 @@
 /**
- * bijoy-to-latex/unicode: plain Bijoy (ANSI) text to Unicode Bangla.
+ * bijoy-to-unicode: plain Bijoy (ANSI) text to Unicode Bangla.
  * No dependencies; works in Node and browsers.
  */
 export { convertBijoyToUnicode } from "./bijoy/BijoyConverter.js";

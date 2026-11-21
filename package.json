@@ -1,7 +1,7 @@
 {
-  "name": "bijoy-to-latex",
+  "name": "bijoy-to-unicode",
   "version": "0.1.0",
-  "description": "Convert Bijoy Bangla to Unicode: plain text, formatted Word HTML for rich text editors, and Word equations and .docx question papers to LaTeX",
+  "description": "Convert Bijoy Bangla to Unicode: plain text, formatted Word HTML for rich text editors, Word equations to LaTeX and .docx question papers",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,10 +10,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./unicode": {
-      "types": "./dist/unicode.d.ts",
-      "import": "./dist/unicode.js"
-    },
     "./html": {
       "types": "./dist/html.d.ts",
       "import": "./dist/html.js"
@@ -21,6 +17,10 @@
     "./latex": {
       "types": "./dist/latex.d.ts",
       "import": "./dist/latex.js"
+    },
+    "./docx": {
+      "types": "./dist/docx.d.ts",
+      "import": "./dist/docx.js"
     },
     "./package.json": "./package.json"
   },
