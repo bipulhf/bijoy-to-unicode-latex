@@ -26,7 +26,10 @@ const webDir = path.join(__dirname, "../web");
 
 // The page calls /converter/api/convert. Serve both with and without that
 // prefix so it works behind a proxy that keeps or strips it, and locally.
-app.use(["/", "/converter"], express.static(webDir));
+// Separate mounts: with the ["/", "/converter"] array, Express 5 answered only
+// "/" itself at the root and returned 404 for every file there.
+app.use("/converter", express.static(webDir));
+app.use("/", express.static(webDir));
 
 app.post(
   ["/api/convert", "/converter/api/convert"],
