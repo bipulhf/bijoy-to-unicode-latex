@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bijoy Paste Converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+Bengali:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #f4f5f7;
+        --surface: #ffffff;
+        --border: #e0e3e8;
+        --text: #111827;
+        --text-secondary: #6b7280;
+        --accent: #4f46e5;
+        --accent-hover: #4338ca;
+        --success: #059669;
+        --danger: #dc2626;
+        --warn-bg: #fffbeb;
+        --warn-text: #92400e;
+        --radius: 12px;
+        --radius-sm: 8px;
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        padding: 32px 16px 64px;
+      }
+
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .steps {
+        color: var(--text-secondary);
+        padding-left: 20px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: end;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+      }
+
+      select,
+      button {
+        font: inherit;
+        font-size: 0.875rem;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      button.primary:hover {
+        background: var(--accent-hover);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      .spacer {
+        flex: 1;
+      }
+
+      #pad {
+        min-height: 360px;
+        padding: 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        font-family: "Noto Sans Bengali", "Times New Roman", serif;
+        font-size: 1rem;
+        overflow-x: auto;
+        outline: none;
+      }
+
+      #pad:focus {
+        border-color: var(--accent);
+      }
+
+      #pad:empty::before {
+        content: attr(data-placeholder);
+        color: var(--text-secondary);
+      }
+
+      #pad table {
+        border-collapse: collapse;
+      }
+
+      #pad td,
+      #pad th {
+        padding: 2px 6px;
+      }
+
+      #pad img {
+        max-width: 100%;
+        height: auto;
+      }
+
+      #status {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        min-height: 1.5em;
+      }
+
+      #status.ok {
+        color: var(--success);
+      }
+
+      #status.error {
+        color: var(--danger);
+      }
+
+      #warnings {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      #warnings li {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+        font-size: 0.875rem;
+        padding: 6px 10px;
+        border-radius: var(--radius-sm);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Bijoy paste converter</h1>
+      <ol class="steps">
+        <li>Copy text from Word (Bijoy fonts such as SutonnyMJ).</li>
+        <li>Paste it into the box below. Bijoy text becomes Unicode; bold, colours, tables and images stay.</li>
+        <li>Press <b>Copy formatted</b> and paste into any rich text editor.</li>
+      </ol>
+
+      <div class="toolbar">
+        <label>
+          Bangla font
+          <select id="font">
+            <option value="">Editor default</option>
+            <option value="Kalpurush">Kalpurush</option>
+            <option value="SolaimanLipi">SolaimanLipi</option>
+            <option value="Noto Sans Bengali">Noto Sans Bengali</option>
+            <option value="Nikosh">Nikosh</option>
+          </select>
+        </label>
+        <label>
+          Equations
+          <select id="equations">
+            <option value="dollar">LaTeX $…$</option>
+            <option value="paren">LaTeX \(…\)</option>
+            <option value="remove">Remove</option>
+          </select>
+        </label>
+        <span class="spacer"></span>
+        <button id="save" type="button" title="Download what Word put on the clipboard, to report a problem" disabled>
+          Save raw clipboard
+        </button>
+        <button id="clear" type="button">Clear</button>
+        <button id="copy" type="button" class="primary" disabled>Copy formatted</button>
+      </div>
+
+      <div
+        id="pad"
+        contenteditable="true"
+        spellcheck="false"
+        data-placeholder="Paste here (Ctrl+V)"
+      ></div>
+
+      <p id="status" role="status"></p>
+      <ul id="warnings"></ul>
+    </main>
+
+    <script type="module">
+      import { convertClipboard } from "./lib/bijoy-paste.js";
+
+      const pad = document.getElementById("pad");
+      const fontSelect = document.getElementById("font");
+      const equationSelect = document.getElementById("equations");
+      const copyButton = document.getElementById("copy");
+      const saveButton = document.getElementById("save");
+      const statusLine = document.getElementById("status");
+      const warningList = document.getElementById("warnings");
+
+      let lastClipboard = null;
+
+      function setStatus(message, kind = "") {
+        statusLine.textContent = message;
+        statusLine.className = kind;
+      }
+
+      function render() {
+        if (!lastClipboard) return;
+        try {
+          const result = convertClipboard(lastClipboard, {
+            banglaFont: fontSelect.value || null,
+            equations: equationSelect.value,
+          });
+          pad.innerHTML = result.html;
+          const { bijoyRuns, equations, images, imagesDropped } = result.stats;
+          setStatus(
+            `Converted ${bijoyRuns} Bijoy run(s), ${equations} equation(s), ${images} image(s)` +
+              (imagesDropped ? `, ${imagesDropped} image(s) dropped` : "") +
+              ".",
+            "ok",
+          );
+          warningList.replaceChildren(
+            ...result.warnings.map((text) => {
+              const li = document.createElement("li");
+              li.textContent = text;
+              return li;
+            }),
+          );
+          copyButton.disabled = false;
+          saveButton.disabled = false;
+        } catch (error) {
+          setStatus(`Conversion failed: ${error.message}`, "error");
+        }
+      }
+
+      pad.addEventListener("paste", (event) => {
+        event.preventDefault();
+        const data = event.clipboardData;
+        lastClipboard = {
+          html: data.getData("text/html"),
+          rtf: data.getData("text/rtf"),
+          text: data.getData("text/plain"),
+        };
+        render();
+      });
+
+      // Dropped content would bypass conversion.
+      pad.addEventListener("drop", (event) => event.preventDefault());
+
+      fontSelect.addEventListener("change", render);
+      equationSelect.addEventListener("change", render);
+
+      copyButton.addEventListener("click", async () => {
+        const html = `<meta charset="utf-8">${pad.innerHTML}`;
+        const text = pad.innerText;
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([html], { type: "text/html" }),
+              "text/plain": new Blob([text], { type: "text/plain" }),
+            }),
+          ]);
+          setStatus("Copied. Paste it into your editor.", "ok");
+        } catch {
+          // Older browsers or http pages: copy the selection instead.
+          const range = document.createRange();
+          range.selectNodeContents(pad);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          const copied = document.execCommand("copy");
+          selection.removeAllRanges();
+          setStatus(
+            copied ? "Copied. Paste it into your editor." : "Copy failed: select the text and press Ctrl+C.",
+            copied ? "ok" : "error",
+          );
+        }
+      });
+
+      saveButton.addEventListener("click", () => {
+        if (!lastClipboard) return;
+        const blob = new Blob([JSON.stringify(lastClipboard, null, 2)], {
+          type: "application/json",
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "clipboard.json";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      });
+
+      document.getElementById("clear").addEventListener("click", () => {
+        lastClipboard = null;
+        pad.replaceChildren();
+        warningList.replaceChildren();
+        setStatus("");
+        copyButton.disabled = true;
+        saveButton.disabled = true;
+        pad.focus();
+      });
+    </script>
+  </body>
+</html>
