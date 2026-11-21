@@ -1,21 +1,38 @@
 {
   "name": "bijoy-to-latex",
   "version": "0.1.0",
-  "description": "Convert Bijoy Bangla Word (.docx) files to structured question JSON with LaTeX equations",
+  "description": "Convert Bijoy Bangla to Unicode: plain text, formatted Word HTML for rich text editors, and Word equations and .docx question papers to LaTeX",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "bijoy-to-latex": "./dist/cli.js"
-  },
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./unicode": {
+      "types": "./dist/unicode.d.ts",
+      "import": "./dist/unicode.js"
+    },
+    "./html": {
+      "types": "./dist/html.d.ts",
+      "import": "./dist/html.js"
+    },
+    "./latex": {
+      "types": "./dist/latex.d.ts",
+      "import": "./dist/latex.js"
+    },
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
+    "build:web": "tsup --config tsup.web.config.ts",
     "dev": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -23,7 +40,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src/ tests/",
     "format": "prettier --write .",
-    "start:web": "tsx src/server.ts"
+    "start:web": "npm run build:web && tsx src/server.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "bijoy",
@@ -32,23 +50,37 @@
     "docx",
     "equation",
     "omml",
-    "mathml"
+    "mathml",
+    "unicode",
+    "sutonnymj",
+    "word",
+    "clipboard",
+    "rich-text"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bipulhf/bijoy-to-unicode-latex.git"
+  },
+  "homepage": "https://github.com/bipulhf/bijoy-to-unicode-latex#readme",
+  "bugs": {
+    "url": "https://github.com/bipulhf/bijoy-to-unicode-latex/issues"
+  },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "commander": "^12.1.0",
-    "express": "^5.2.1",
-    "fast-xml-parser": "^5.12.1",
-    "jszip": "^3.10.1",
-    "multer": "^2.1.1"
+    "fast-xml-parser": "^5.12.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/multer": "^2.1.0",
     "@types/node": "^22.0.0",
+    "commander": "^12.1.0",
+    "express": "^5.3.0",
+    "happy-dom": "^21.0.4",
+    "jszip": "^3.10.2",
+    "multer": "^2.5.0",
     "tsup": "^8.3.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
