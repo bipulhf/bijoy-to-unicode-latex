@@ -8,6 +8,13 @@ const BANGLA_PRE_KAR = /[\u09BF\u09C7\u09C8]/;
 
 const BANGLA_HALANT = "\u09CD";
 
+// Bijoy's © (reph) is typed after the consonant cluster it sits on. It is
+// mapped to this private-use marker first so that only reph still in Bijoy
+// order gets moved; র্ produced by MULTI_CHAR_MAP is already in Unicode order.
+const REPH_MARK = "\uE000";
+const BIJOY_REPH = "\u00A9";
+const REPH = "\u09B0\u09CD";
+
 function isBanglaConsonant(ch: string): boolean {
   return BANGLA_CONSONANT.test(ch);
 }
@@ -41,10 +48,16 @@ function applySingleCharMap(text: string): string {
   let result = "";
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]!;
+    if (ch === BIJOY_REPH) {
+      result += REPH_MARK;
+      continue;
+    }
     const mapped = SINGLE_CHAR_MAP[ch];
     result += mapped ?? ch;
   }
-  return result;
+  // Prefix glyphs ending in hasanta (¯ = স্) followed by phala glyphs starting
+  // with one (ª = ্র) give a double hasanta: ¯ª must be স্র, not স্্র.
+  return result.replace(/\u09CD{2,}/g, BANGLA_HALANT);
 }
 
 function rearrangeUnicode(str: string): string {
@@ -84,19 +97,11 @@ function rearrangeUnicode(str: string): string {
         result.substring(i + 2);
     }
 
-    // Reph movement: র্ before consonant cluster
-    // Only move reph if it is NOT already directly followed by a consonant
-    // (when © is typed before the consonant in Bijoy, র্ is already in correct Unicode order)
-    if (
-      i < result.length - 1 &&
-      result[i] === "\u09B0" &&
-      result[i + 1] === BANGLA_HALANT &&
-      (i === 0 || result[i - 1] !== BANGLA_HALANT) &&
-      (i + 2 >= result.length || !isBanglaConsonant(result[i + 2]!))
-    ) {
+    // Reph movement: Bijoy types © after the consonant cluster it sits on
+    // (Kg© = কর্ম, wbY©q = নির্ণয়), so move র্ in front of that cluster.
+    if (result[i] === REPH_MARK) {
       let j = 1;
-      while (true) {
-        if (i - j < 0) break;
+      while (i - j >= 0) {
         if (
           isBanglaConsonant(result[i - j]!) &&
           i - j - 1 >= 0 &&
@@ -110,18 +115,17 @@ function rearrangeUnicode(str: string): string {
         }
       }
 
-      // Don't move reph over a multi-consonant conjunct when at end of string:
-      // it likely belongs to the next run (cross-run split scenario)
-      if (j > 0 && i - j >= 0 && !(i + 2 >= result.length && j > 1)) {
+      if (i - j >= 0 && isBanglaConsonant(result[i - j]!)) {
         result =
           result.substring(0, i - j) +
-          result[i]! +
-          result[i + 1]! +
+          REPH +
           result.substring(i - j, i) +
-          result.substring(i + 2);
-        i += 1;
-        continue;
+          result.substring(i + 1);
+      } else {
+        result = result.substring(0, i) + REPH + result.substring(i + 1);
       }
+      i += 1;
+      continue;
     }
 
     // Pre-kar reordering: ে, ি, ৈ appear before consonant cluster
@@ -242,7 +246,9 @@ function mapKarToSwarabarna(kar: string): string | null {
 
 function cleanupText(text: string): string {
   // অ + া → আ
-  let result = text.replace(/\u0985\u09BE/g, "\u0986");
+  let result = text
+    .replaceAll(REPH_MARK, REPH)
+    .replace(/\u0985\u09BE/g, "\u0986");
   // Remove orphan hasanta at word boundaries, but NOT রেফ (র্) which may belong to the next run
   result = result.replace(/(?<!\u09B0)\u09CD(?=\s|$)/g, "");
   // Remove duplicate ZWNJ

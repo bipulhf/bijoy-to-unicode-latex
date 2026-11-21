@@ -15,11 +15,20 @@ describe("isBijoyFont", () => {
     expect(isBijoyFont("Bijoy")).toBe(true);
     expect(isBijoyFont("BijoyMJ")).toBe(true);
     expect(isBijoyFont("BanglaBijoy")).toBe(true);
-    expect(isBijoyFont("AdorshoLipi")).toBe(true);
-    expect(isBijoyFont("Adorsho Lipi")).toBe(true);
-    expect(isBijoyFont("Charukola")).toBe(true);
-    expect(isBijoyFont("Rupali")).toBe(true);
-    expect(isBijoyFont("Nikosh")).toBe(true);
+  });
+
+  it("returns true for MJ-suffixed Bijoy families", () => {
+    expect(isBijoyFont("ChandrabatiMJ")).toBe(true);
+    expect(isBijoyFont("AtraiMJ Bold")).toBe(true);
+  });
+
+  it("returns false for Unicode Bangla fonts", () => {
+    expect(isBijoyFont("AdorshoLipi")).toBe(false);
+    expect(isBijoyFont("Charukola")).toBe(false);
+    expect(isBijoyFont("Rupali")).toBe(false);
+    expect(isBijoyFont("Siyam Rupali")).toBe(false);
+    expect(isBijoyFont("Nikosh")).toBe(false);
+    expect(isBijoyFont("NikoshBAN")).toBe(false);
   });
 
   it("returns true for bold/italic font name variants via substring match", () => {
@@ -27,8 +36,6 @@ describe("isBijoyFont", () => {
     expect(isBijoyFont("SutonnyMJ Bold Italic")).toBe(true);
     expect(isBijoyFont("SutonnyMJ Italic")).toBe(true);
     expect(isBijoyFont("Bijoy Regular")).toBe(true);
-    expect(isBijoyFont("AdorshoLipi Bold")).toBe(true);
-    expect(isBijoyFont("Charukola Unicode")).toBe(true);
   });
 
   it("returns false for non-Bijoy fonts", () => {
@@ -52,7 +59,13 @@ describe("isBijoyFont", () => {
 describe("hasBijoyMarkers", () => {
   it("detects Bijoy heuristic characters in extended ASCII range", () => {
     expect(hasBijoyMarkers("g¨vwUª")).toBe(true);
-    expect(hasBijoyMarkers("\u00B0\u00B1")).toBe(true);
+  });
+
+  it("ignores symbols common in English and maths text", () => {
+    expect(hasBijoyMarkers("30°C")).toBe(false);
+    expect(hasBijoyMarkers("5 ± 0.1")).toBe(false);
+    expect(hasBijoyMarkers("x² + ½")).toBe(false);
+    expect(hasBijoyMarkers("hello\u00A0world")).toBe(false);
   });
 
   it("detects Bijoy visual marker characters", () => {

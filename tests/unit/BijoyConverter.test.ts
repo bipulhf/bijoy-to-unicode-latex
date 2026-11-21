@@ -83,10 +83,20 @@ describe("convertBijoyToUnicode", () => {
       expect(convertBijoyToUnicode("\u00AF\u00FA\u00A9\u006B")).toBe("স্পর্শ");
     });
 
-    it("preserves রেফ at end of fragment when split across runs: ¯ú© alone → স্পর্", () => {
-      // When ¯ú© is at the end of a run (before k in the next run),
-      // the রেফ must NOT be moved to the front of স্প.
-      expect(convertBijoyToUnicode("\u00AF\u00FA\u00A9")).toBe("স্পর্");
+    it("puts reph typed after a conjunct on that conjunct: ¯ú© → র্স্প", () => {
+      expect(convertBijoyToUnicode("\u00AF\u00FA\u00A9")).toBe("র্স্প");
+    });
+
+    it("moves reph typed after a consonant inside a word", () => {
+      expect(convertBijoyToUnicode("wbY\u00A9q")).toBe("নির্ণয়");
+      expect(convertBijoyToUnicode("eY\u00A9bv")).toBe("বর্ণনা");
+      expect(convertBijoyToUnicode("Kvh\u00A9\u00B5g")).toBe("কার্যক্রম");
+      expect(convertBijoyToUnicode("eM\u00A9")).toBe("বর্গ");
+      expect(convertBijoyToUnicode("wbYv\u00A9qK")).toBe("নির্ণায়ক");
+    });
+
+    it("handles e-kar before a consonant carrying reph: DcK‡Y© → উপকর্ণে", () => {
+      expect(convertBijoyToUnicode("DcK\u2021Y\u00A9")).toBe("উপকর্ণে");
     });
 
     it("converts reph after consonant (k© then next run continues): র্শ", () => {
@@ -95,8 +105,14 @@ describe("convertBijoyToUnicode", () => {
     });
 
     it("converts কর্ম (karma) correctly", () => {
-      // K©g: ক + © + ম → কর্ম
-      expect(convertBijoyToUnicode("K\u00A9g")).toBe("কর্ম");
+      // Kg©: ক + ম + © → কর্ম (reph typed after the consonant it sits on)
+      expect(convertBijoyToUnicode("Kg\u00A9")).toBe("কর্ম");
+    });
+  });
+
+  describe("conjuncts with phala glyphs", () => {
+    it("does not double the hasanta in স্র", () => {
+      expect(convertBijoyToUnicode("\u2021\u00AF\u00AAvZ")).toBe("স্রোত");
     });
   });
 
